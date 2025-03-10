@@ -8,9 +8,6 @@ from .protocol import analyze_flows
 def user_page():
     """User Dashboard page."""
 
-    # Title
-    st.title(f"User Dashboard - Welcome, {st.session_state.username}!")
-
     # Sidebar navigation with streamlit-option-menu
     with st.sidebar:
         # Navigation menu with icons
@@ -27,17 +24,7 @@ def user_page():
                 "nav-link-selected": {"background-color": "#4CAF50", "color": "white"},
             }
         )
-
-        # Quick links section
-        st.markdown("---")
-        st.markdown("### Quick Links")
-        if st.button("📄 Documentation"):
-            st.write("Redirecting to documentation...")
-        if st.button("🛠️ Settings"):
-            st.write("Redirecting to settings...")
-        if st.button("📤 Logout"):
-            st.write("Logging out...")
-            # Add logout logic here
+    
 
     # Content based on selection
     if selected_tab == "Home":
@@ -51,12 +38,14 @@ def user_page():
         """)
 
     elif selected_tab == "Analysis":
+        st.title("Analyse des logs de sécurité")
         analyze_logs()
         
     elif selected_tab == "Datasets":
+        st.title("Exploration des données")
         explore_data()
     elif selected_tab == "Protocol":  # Fixed typo in "Protocol"
-        st.write("Protocol content coming soon!")  # Fixed typo in "Protocol"
+        st.title("Statistiques des flux réseau par protocole")
         analyze_flows()
 
     elif selected_tab == "Machine Learning":
@@ -67,8 +56,21 @@ def user_page():
             - Prediction analysis
             - Model evaluation
         """)
-
-    # Example of database usage (uncomment if needed)
-    # db = LogDatabase()
-    # logs = db.get_all_logs()
-    # st.table(logs)
+    
+   # Quick links section after filters and content
+    st.markdown("---")
+    st.markdown("### Quick Links")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("📄 Documentation"):
+            st.write("Redirecting to documentation...")
+            # Redirection vers la page de documentation
+            st.session_state.current_page = "Documentation"
+            st.experimental_rerun()
+    with col2:
+        if st.button("🛠️ Settings"):
+            st.write("Redirecting to settings...")
+    with col3:
+        if st.button("📤 Logout"):
+            st.write("Logging out...")
+            # Add logout logic here

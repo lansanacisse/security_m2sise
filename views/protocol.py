@@ -4,8 +4,6 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 
-# Configuration de la page
-st.title("Analyse descriptive des flux autorisés et rejetés (TCP/UDP)")
 
 # Définition des plages de ports selon la RFC 6056 et options complémentaires
 RFC_PORT_RANGES = {
@@ -109,37 +107,100 @@ def apply_filters(df):
     return filtered_df
 
 def plot_analysis(filtered_df):
-    """Réalise l'analyse descriptive et affiche un graphique en barres et le tableau récapitulatif."""
-    st.header("Analyse descriptive des flux")
+    """Réalise l'analyse descriptive et affiche des graphiques avancés."""
+    df_pd = filtered_df.to_pandas()
     
-    # Agréger les données par protocole et action
-    grouped = filtered_df.group_by(["Protocole", "action"]).agg(pl.count().alias("Nombre"))
-    data = grouped.to_pandas()
+    total_flows = len(df_pd)
     
-    # Graphique en barres regroupant les flux autorisés et rejetés par protocole
-    fig = px.bar(
-        data,
-        x="Protocole",
-        y="Nombre",
-        color="action",
-        barmode="group",
-        title="Flux autorisés et rejetés par protocole",
-        labels={"Nombre": "Nombre de flux", "action": "Action"}
+    # 1. Métriques pour les pourcentages par action
+    st.subheader("Métriques des Flux")
+    
+    action_counts = df_pd["action"].value_counts(normalize=True) * 100
+    protocol_counts = df_pd["Protocole"].value_counts(normalize=True) * 100
+    source_counts = df_pd["IPsrc"].value_counts(normalize=True) * 100
+    destination_counts = df_pd["IPdst"].value_counts(normalize=True) * 100
+    
+    st.markdown(
+        """
+        <div style="display: flex; justify-content: space-between;">
+            <div style="width: 24%; background-color: #4CAF50; padding: 10px; border-radius: 5px; text-align: center;">
+                <h5 style="color: white;">PERMIT</h5>
+                <h4 style="color: white;">{permit:.2f}%</h4>
+            </div>
+            <div style="width: 24%; background-color: #F44336; padding: 10px; border-radius: 5px; text-align: center;">
+                <h5 style="color: white;">DENY</h5>
+                <h4 style="color: white;">{deny:.2f}%</h4>
+            </div>
+            <div style="width: 24%; background-color: #2196F3; padding: 10px; border-radius: 5px; text-align: center;">
+                <h5 style="color: white;">Flux TCP</h5>
+                <h4 style="color: white;">{tcp:.2f}%</h4>
+            </div>
+            <div style="width: 24%; background-color: #FF9800; padding: 10px; border-radius: 5px; text-align: center;">
+                <h5 style="color: white;">Flux UDP</h5>
+                <h4 style="color: white;">{udp:.2f}%</h4>
+            </div>
+        </div>
+        <br>
+        <div style="display: flex; justify-content: space-between;">
+            <div style="width: 49%; background-color: #9C27B0; padding: 10px; border-radius: 5px; text-align: center;">
+                <h5 style="color: white;">Top 1 Source</h5>
+                <h4 style="color: white;">{top_source:.2f}%</h4>
+                <p style="color: white;">IP: {top_source_ip}</p>
+            </div>
+            <div style="width: 49%; background-color: #009688; padding: 10px; border-radius: 5px; text-align: center;">
+                <h5 style="color: white;">Top 1 Destination</h5>
+                <h4 style="color: white;">{top_dest:.2f}%</h4>
+                <p style="color: white;">IP: {top_dest_ip}</p>
+            </div>
+        </div>
+        """.format(
+            permit=action_counts.get('PERMIT', 0),
+            deny=action_counts.get('DENY', 0),
+            tcp=protocol_counts.get('TCP', 0),
+            udp=protocol_counts.get('UDP', 0),
+            top_source=source_counts.iloc[0],
+            top_source_ip=source_counts.index[0],
+            top_dest=destination_counts.iloc[0],
+            top_dest_ip=destination_counts.index[0]
+        ),
+        unsafe_allow_html=True
     )
-    st.plotly_chart(fig, use_container_width=True)
     
-    # Affichage du tableau de synthèse
-    st.dataframe(data)
+    # 2. Sunburst Plot
+    st.subheader("Répartition hiérarchique des flux")
+    sunburst_data = df_pd.groupby(["Protocole", "action", "IPsrc"]).size().reset_index(name="Nombre")
+    fig_sunburst = px.sunburst(
+        sunburst_data,
+        path=["Protocole", "action", "IPsrc"],
+        values="Nombre",
+        title="Répartition des flux par protocole, action et source"
+    )
+    st.plotly_chart(fig_sunburst, use_container_width=True)
     
-    # Affichage des statistiques descriptives
-    st.subheader("Statistiques descriptives")
-    total_flows = filtered_df.height
-    st.write(f"**Nombre total de flux :** {total_flows}")
+    # 3. Violin Plot
+    st.subheader("Distribution des ports sources et destinations")
+    fig_violin = px.violin(
+        df_pd,
+        y="Port_src",
+        x="Protocole",
+        color="action",
+        box=True,
+        points="all",
+        title="Distribution des ports sources par protocole et action"
+    )
+    st.plotly_chart(fig_violin, use_container_width=True)
     
-    protocol_counts = filtered_df.group_by("Protocole").agg(pl.count().alias("Nombre")).to_pandas()
-    st.write("**Nombre de flux par protocole :**")
-    st.dataframe(protocol_counts)
-    
+    # 4. Heatmap
+    st.subheader("Heatmap : Flux entre IP source et IP destination")
+    heatmap_data = df_pd.groupby(["IPsrc", "IPdst"]).size().unstack(fill_value=0)
+    fig_heatmap = px.imshow(
+        heatmap_data,
+        labels=dict(x="IP Destination", y="IP Source", color="Nombre de flux"),
+        title="Flux entre IP source et IP destination"
+    )
+    st.plotly_chart(fig_heatmap, use_container_width=True)
+
+
 def analyze_flows():
     """Charge les données et applique l'analyse descriptive avec filtres."""
     df = load_data()   
