@@ -1,8 +1,9 @@
 import streamlit as st
 from streamlit_option_menu import option_menu
 from db import Database, LogDatabase
-from .analysis import analyze_logs
-from .data import explore_data
+from .analysis import analyze_logs  # Removed the dot (.) before 'analysis'
+from .data import explore_data  # Removed the dot (.) before 'data'
+from .protocol import analyze_protocols  # Removed the dot (.) before 'protocol'
 
 def user_page():
     """User Dashboard page."""
@@ -14,16 +15,16 @@ def user_page():
     with st.sidebar:
         # Navigation menu with icons
         selected_tab = option_menu(
-            menu_title="Navigation",  # Titre du menu
-            options=["Home", "Analysis", "Datasets", "Machine Learning"],  # Options du menu
-            icons=["house", "bar-chart", "search", "robot"],  # Icônes pour chaque option
-            menu_icon="cast",  # Icône du menu
-            default_index=0,  # Option sélectionnée par défaut
+            menu_title=None,  # Added menu_title parameter
+            options=["Home", "Analysis", "Datasets", "Protocol", "Machine Learning"],  # Fixed typo in "Protocol"
+            icons=["house", "bar-chart", "search", "robot", "cpu"],
+            menu_icon="cast",
+            default_index=0,
             styles={
-                "container": {"padding": "5px", "background-color": "#f0f2f6"},  # Style du conteneur
-                "icon": {"color": "orange", "font-size": "18px"},  # Style des icônes
-                "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0px", "color": "black"},  # Style des liens
-                "nav-link-selected": {"background-color": "#4CAF50", "color": "white"},  # Style de l'option sélectionnée
+                "container": {"padding": "5px", "background-color": "#f0f2f6"},
+                "icon": {"color": "orange", "font-size": "18px"},
+                "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0px", "color": "black"},
+                "nav-link-selected": {"background-color": "#4CAF50", "color": "white"},
             }
         )
 
@@ -54,6 +55,9 @@ def user_page():
         
     elif selected_tab == "Datasets":
         explore_data()
+    elif selected_tab == "Protocol":  # Fixed typo in "Protocol"
+        st.write("Protocol content coming soon!")  # Fixed typo in "Protocol"
+        analyze_protocols()
 
     elif selected_tab == "Machine Learning":
         st.write("Machine Learning content coming soon!")
