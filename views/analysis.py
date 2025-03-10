@@ -46,13 +46,113 @@ def analyze_logs():
         )
 
         # Affichage des données brutes
-        st.write("Aperçu des données:")
-        st.write(df.head(5))
+        # st.write("Aperçu des données:")
+        # st.write(df.head(5))
 
         # TODO PARTIE 3 ----------------------------
         # Visualisation interactive des données
         # Visualisation interactive des données (IP source avec le nombre d’occurrences de destination contactées, incluant le nombre de flux rejetés et autorisés).
+        st.header("Analyse des connexions par IP source")
 
+        # Calcul des statistiques par IP source
+        ip_stats = (
+            df.group_by("IPsrc")
+            .agg(
+                [
+                    pl.n_unique("IPdst").alias("nb_destinations"),
+                    pl.col("action")
+                    .filter(pl.col("action") == "PERMIT")
+                    .count()
+                    .alias("permit_count"),
+                    pl.col("action")
+                    .filter(pl.col("action") == "DENY")
+                    .count()
+                    .alias("deny_count"),
+                    pl.count().alias("total_count"),
+                ]
+            )
+            .sort("nb_destinations", descending=True)
+        )
+
+        # Création d'un sélecteur d'IP interactif
+        selected_ip = st.selectbox(
+            "Sélectionner une IP source",
+            options=ip_stats["IPsrc"].to_list(),
+        )
+
+        # Filtrage des données pour l'IP sélectionnée
+        ip_details = df.filter(pl.col("IPsrc") == selected_ip)
+
+        # Création de deux colonnes pour l'affichage
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Graphique des destinations contactées
+            dest_counts = (
+                ip_details.group_by("IPdst")
+                .agg(pl.count().alias("count"))
+                .sort("count", descending=True)
+            )
+
+            fig_dest = px.bar(
+                dest_counts.to_pandas(),
+                x="IPdst",
+                y="count",
+                title=f"Destinations contactées par {selected_ip}",
+                text="count",
+            )
+            fig_dest.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig_dest)
+
+        with col2:
+            # Distribution des actions pour cette IP
+            action_counts = (
+                ip_details.group_by("action")
+                .agg(pl.count().alias("count"))
+                .sort("count", descending=True)
+            )
+
+            fig_actions = px.pie(
+                action_counts.to_pandas(),
+                values="count",
+                names="action",
+                title=f"Distribution des actions pour {selected_ip}",
+                color="action",
+                color_discrete_map={"PERMIT": "green", "DENY": "red"},
+            )
+            st.plotly_chart(fig_actions)
+
+        # Détails supplémentaires dans un expander
+        with st.expander("Détails des connexions"):
+            # Table des connexions détaillées
+            connections_detail = (
+                ip_details.select(["IPdst", "Port_dst", "Protocole", "action"])
+                .group_by(["IPdst", "Port_dst", "Protocole", "action"])
+                .agg(pl.count().alias("occurrences"))
+                .sort("occurrences", descending=True)
+            )
+
+            st.write("Détail des connexions :")
+            st.dataframe(
+                connections_detail.to_pandas().style.background_gradient(
+                    subset=["occurrences"], cmap="YlOrRd"
+                )
+            )
+
+        # Métriques globales
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Nombre total de destinations", ip_details["IPdst"].n_unique())
+        with col2:
+            st.metric(
+                "Connexions autorisées",
+                ip_details.filter(pl.col("action") == "PERMIT").height,
+            )
+        with col3:
+            st.metric(
+                "Connexions refusées",
+                ip_details.filter(pl.col("action") == "DENY").height,
+            )
         # ----------------- PARTIE 4 -----------------
 
         ############################################################################################################
@@ -69,7 +169,11 @@ def analyze_logs():
         )
 
         fig_top_ips = px.bar(
-            top_ips.to_pandas(), x="IPsrc", y="count", title="Top 5 IP Sources"
+            top_ips.to_pandas(),
+            x="IPsrc",
+            y="count",
+            title="Top 5 IP Sources",
+            text="count",
         )
         st.plotly_chart(fig_top_ips)
 
@@ -115,6 +219,7 @@ def analyze_logs():
             x="Port_dst",
             y="count",  # Changed from "counts" to "count"
             title="Top 10 Ports Autorisés < 1024",
+            text="count",
         )
         st.plotly_chart(fig_ports)
 
@@ -136,12 +241,6 @@ def analyze_logs():
         )
 
         st.write(df_with_network_info)
-        # shape
-        st.write(df_with_network_info.shape)  # Affiche un tuple
-        st.write(df_with_network_info.schema["is_src_internal"])  # Affiche un Boolean
-
-        # Affichage des statistiques
-        st.write("Distribution des flux réseau :")
 
         # Affichage détaillé des IPs externes
         st.subheader("Détail des IPs externes")
