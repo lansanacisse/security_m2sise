@@ -126,18 +126,22 @@ def analyze_logs():
         # Ajout des colonnes pour IP source et destination
         df_with_network_info = df.with_columns(
             [
-                pl.col("IPsrc").map_elements(is_internal_ip).alias("is_src_internal"),
+                pl.col("IPsrc")
+                .map_elements(is_internal_ip)
+                .alias(
+                    "is_src_internal"
+                ),  # map_elements est l'équivalent de apply dans pandas
                 pl.col("IPdst").map_elements(is_internal_ip).alias("is_dst_internal"),
             ]
         )
 
+        st.write(df_with_network_info)
+        # shape
+        st.write(df_with_network_info.shape)  # Affiche un tuple
+        st.write(df_with_network_info.schema["is_src_internal"])  # Affiche un Boolean
+
         # Affichage des statistiques
         st.write("Distribution des flux réseau :")
-        network_stats = (
-            df_with_network_info.group_by(["is_src_internal", "action"])
-            .agg(pl.count().alias("nombre_connexions"))
-            .sort("nombre_connexions", descending=True)
-        )
 
         # Affichage détaillé des IPs externes
         st.subheader("Détail des IPs externes")
@@ -153,6 +157,81 @@ def analyze_logs():
         # Analyse des flux (Sankey)
 
         st.subheader("Analyse des flux réseau (interne/externe)")
+
+        # Préparation des données pour Sankey
+        flux_data = (
+            df_with_network_info.select(
+                [
+                    pl.when(pl.col("is_src_internal"))
+                    .then(pl.lit("IP Interne"))
+                    .otherwise(pl.lit("IP Externe"))
+                    .alias("source"),
+                    pl.col("action").alias("target"),
+                ]
+            )
+            .group_by(["source", "target"])
+            .count()
+            .sort("count", descending=True)
+        )
+
+        # Création des nodes uniques
+        nodes = list(
+            set(flux_data["source"].unique()) | set(flux_data["target"].unique())
+        )
+        node_indices = {node: idx for idx, node in enumerate(nodes)}
+
+        # Définition des couleurs
+        node_colors = [
+            (
+                "blue"
+                if node == "IP Interne"
+                else (
+                    "orange"
+                    if node == "IP Externe"
+                    else "red" if node == "DENY" else "green"
+                )
+            )
+            for node in nodes
+        ]
+
+        # Création du diagramme Sankey
+        fig_sankey = go.Figure(
+            data=[
+                go.Sankey(
+                    node=dict(
+                        pad=15,
+                        thickness=20,
+                        line=dict(color="black", width=0.5),
+                        label=nodes,
+                        color=node_colors,
+                    ),
+                    link=dict(
+                        source=[
+                            node_indices[row["source"]]
+                            for row in flux_data.iter_rows(named=True)
+                        ],
+                        target=[
+                            node_indices[row["target"]]
+                            for row in flux_data.iter_rows(named=True)
+                        ],
+                        value=flux_data["count"].to_list(),
+                    ),
+                )
+            ]
+        )
+
+        # Mise en page
+        fig_sankey.update_layout(
+            title="Flux réseau: IP Interne/Externe → Actions", font_size=10, height=600
+        )
+
+        # Affichage
+        st.plotly_chart(fig_sankey, use_container_width=True)
+
+        # Statistiques complémentaires
+        with st.expander("Détails des flux"):
+            st.write("Distribution détaillée des flux:")
+            st.write(flux_data)
 
     except Exception as e:
         st.error(f"Error reading log file: {str(e)}")
