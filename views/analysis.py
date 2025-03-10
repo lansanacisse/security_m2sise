@@ -6,6 +6,22 @@ import streamlit as st
 import polars as pl
 import plotly.express as px
 import plotly.graph_objects as go
+import ipaddress
+
+
+# Définition des plages avec RFC 1918, à vérifier ?
+def is_internal_ip(ip: str) -> bool:
+    """Vérifie si une IP appartient au réseau interne de l'université"""
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        internal_networks = [
+            ipaddress.ip_network("10.70.0.0/16"),
+            ipaddress.ip_network("159.84.0.0/16"),
+            ipaddress.ip_network("192.168.0.0/16"),
+        ]
+        return any(ip_obj in network for network in internal_networks)
+    except ValueError:
+        return False
 
 
 def analyze_logs():
@@ -39,7 +55,10 @@ def analyze_logs():
 
         # ----------------- PARTIE 4 -----------------
 
+        ############################################################################################################
         # TOP 5 des IP sources
+        ############################################################################################################
+
         st.subheader("Top 5 des IP Sources les plus émettrices")
         top_ips = (
             df.select(pl.col("IPsrc"))
@@ -71,7 +90,10 @@ def analyze_logs():
         )
         st.plotly_chart(fig_sunburst)
 
+        ############################################################################################################
         # TOP 10 des ports autorisés < 1024
+        ############################################################################################################
+
         st.subheader("Top 10 des ports autorisés < 1024")
 
         # DEBUG : Affichage des données sampled, il n'y a que 443 pour le port dst
@@ -96,25 +118,83 @@ def analyze_logs():
         )
         st.plotly_chart(fig_ports)
 
-        # Analyse des flux (Sankey)
-        st.subheader("Analyse des flux réseau")
-        flux_data = (
-            df.select(["IPsrc", "IPdst", "action"])
-            .group_by(["IPsrc", "IPdst", "action"])
-            .count()
-            .sort("count", descending=True)
-            .limit(20)
+        ############################################################################################################
+        # Analyse des flux réseau
+        ############################################################################################################
+        st.subheader("Classification des IPs (internes/externes)")
+
+        # Ajout des colonnes pour IP source et destination
+        df_with_network_info = df.with_columns(
+            [
+                pl.col("IPsrc")
+                .map_elements(is_internal_ip)
+                .alias(
+                    "is_src_internal"
+                ),  # map_elements est l'équivalent de apply dans pandas
+                pl.col("IPdst").map_elements(is_internal_ip).alias("is_dst_internal"),
+            ]
         )
+
+        st.write(df_with_network_info)
+        # shape
+        st.write(df_with_network_info.shape)  # Affiche un tuple
+        st.write(df_with_network_info.schema["is_src_internal"])  # Affiche un Boolean
+
+        # Affichage des statistiques
+        st.write("Distribution des flux réseau :")
+
+        # Affichage détaillé des IPs externes
+        st.subheader("Détail des IPs externes")
+        external_ips = (
+            df_with_network_info.filter(pl.col("is_src_internal") == False)
+            .group_by(["IPsrc", "action"])
+            .agg(pl.count().alias("nombre_tentatives"))
+            .sort("nombre_tentatives", descending=True)
+        )
+
+        st.write(external_ips)
+
+        # Analyse des flux (Sankey)
+
+        st.subheader("Analyse des flux réseau (interne/externe)")
 
         # Préparation des données pour Sankey
-        nodes = list(
-            set(flux_data["IPsrc"].unique())
-            | set(flux_data["IPdst"].unique())
-            | set(flux_data["action"].unique())
+        flux_data = (
+            df_with_network_info.select(
+                [
+                    pl.when(pl.col("is_src_internal"))
+                    .then(pl.lit("IP Interne"))
+                    .otherwise(pl.lit("IP Externe"))
+                    .alias("source"),
+                    pl.col("action").alias("target"),
+                ]
+            )
+            .group_by(["source", "target"])
+            .count()
+            .sort("count", descending=True)
         )
 
+        # Création des nodes uniques
+        nodes = list(
+            set(flux_data["source"].unique()) | set(flux_data["target"].unique())
+        )
         node_indices = {node: idx for idx, node in enumerate(nodes)}
 
+        # Définition des couleurs
+        node_colors = [
+            (
+                "blue"
+                if node == "IP Interne"
+                else (
+                    "orange"
+                    if node == "IP Externe"
+                    else "red" if node == "DENY" else "green"
+                )
+            )
+            for node in nodes
+        ]
+
+        # Création du diagramme Sankey
         fig_sankey = go.Figure(
             data=[
                 go.Sankey(
@@ -123,22 +203,54 @@ def analyze_logs():
                         thickness=20,
                         line=dict(color="black", width=0.5),
                         label=nodes,
+                        color=node_colors,
                     ),
                     link=dict(
                         source=[
-                            node_indices[row["IPsrc"]]
+                            node_indices[row["source"]]
                             for row in flux_data.iter_rows(named=True)
                         ],
                         target=[
-                            node_indices[row["IPdst"]]
+                            node_indices[row["target"]]
                             for row in flux_data.iter_rows(named=True)
                         ],
                         value=flux_data["count"].to_list(),
+                        color=[
+                            (
+                                "rgba(0, 0, 255, 0.4)"
+                                if row["source"] == "IP Interne"
+                                and row["target"] == "PERMIT"
+                                else (
+                                    "rgba(0, 0, 255, 0.2)"
+                                    if row["source"] == "IP Interne"
+                                    and row["target"] == "DENY"
+                                    else (
+                                        "rgba(255, 165, 0, 0.4)"
+                                        if row["source"] == "IP Externe"
+                                        and row["target"] == "PERMIT"
+                                        else "rgba(255, 165, 0, 0.2)"
+                                    )
+                                )
+                            )
+                            for row in flux_data.iter_rows(named=True)
+                        ],
                     ),
                 )
             ]
         )
-        st.plotly_chart(fig_sankey)
+
+        # Mise en page
+        fig_sankey.update_layout(
+            title="Flux réseau: IP Interne/Externe → Actions", font_size=10, height=600
+        )
+
+        # Affichage
+        st.plotly_chart(fig_sankey, use_container_width=True)
+
+        # Statistiques complémentaires
+        with st.expander("Détails des flux"):
+            st.write("Distribution détaillée des flux:")
+            st.write(flux_data)
 
     except Exception as e:
         st.error(f"Error reading log file: {str(e)}")
