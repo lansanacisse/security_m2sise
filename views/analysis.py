@@ -15,8 +15,8 @@ def is_internal_ip(ip: str) -> bool:
     try:
         ip_obj = ipaddress.ip_address(ip)
         internal_networks = [
-            ipaddress.ip_network("10.0.0.0/8"),
-            ipaddress.ip_network("172.16.0.0/12"),
+            ipaddress.ip_network("10.70.0.0/16"),
+            ipaddress.ip_network("159.84.0.0/16"),
             ipaddress.ip_network("192.168.0.0/16"),
         ]
         return any(ip_obj in network for network in internal_networks)
@@ -215,6 +215,25 @@ def analyze_logs():
                             for row in flux_data.iter_rows(named=True)
                         ],
                         value=flux_data["count"].to_list(),
+                        color=[
+                            (
+                                "rgba(0, 0, 255, 0.4)"
+                                if row["source"] == "IP Interne"
+                                and row["target"] == "PERMIT"
+                                else (
+                                    "rgba(0, 0, 255, 0.2)"
+                                    if row["source"] == "IP Interne"
+                                    and row["target"] == "DENY"
+                                    else (
+                                        "rgba(255, 165, 0, 0.4)"
+                                        if row["source"] == "IP Externe"
+                                        and row["target"] == "PERMIT"
+                                        else "rgba(255, 165, 0, 0.2)"
+                                    )
+                                )
+                            )
+                            for row in flux_data.iter_rows(named=True)
+                        ],
                     ),
                 )
             ]

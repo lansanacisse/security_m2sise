@@ -3,20 +3,28 @@ from views.analysis import is_internal_ip
 
 def test_internal_ips():
     """Test des adresses IP internes valides"""
-    assert is_internal_ip("10.0.0.1") == True
-    assert is_internal_ip("172.16.0.1") == True
-    assert is_internal_ip("172.31.255.255") == True
+    assert is_internal_ip("10.70.0.1") == True
+    assert is_internal_ip("159.84.146.221") == True
+    assert is_internal_ip("159.84.0.1") == True
     assert is_internal_ip("192.168.1.1") == True
+
+
+def test_external_ips():
+    """Test des adresses IP externes"""
+    assert is_internal_ip("8.8.8.8") == False
+    assert is_internal_ip("172.16.0.1") == False
+    assert is_internal_ip("159.85.0.1") == False
+    assert is_internal_ip("10.69.0.1") == False
 
 
 def test_boundary_cases():
     """Test des cas limites"""
-    assert is_internal_ip("10.0.0.0") == True  # Début de plage
-    assert is_internal_ip("10.255.255.255") == True  # Fin de plage
-    assert is_internal_ip("172.16.0.0") == True  # Début de plage
-    assert is_internal_ip("172.31.255.255") == True  # Fin de plage
-    assert is_internal_ip("192.168.0.0") == True  # Début de plage
-    assert is_internal_ip("192.168.255.255") == True  # Fin de plage
+    assert is_internal_ip("10.70.0.0") == True
+    assert is_internal_ip("10.70.255.255") == True
+    assert is_internal_ip("159.84.0.0") == True
+    assert is_internal_ip("159.84.255.255") == True
+    assert is_internal_ip("192.168.0.0") == True
+    assert is_internal_ip("192.168.255.255") == True
 
 
 def test_invalid_ips():
