@@ -9,7 +9,6 @@ def user_page():
 
     # Title
     st.title(f"User Dashboard - Welcome, {st.session_state.username}!")
-    st.write("Properties")
 
     # Tabs
     tab1, tab2, tab3, tab4 = st.tabs(["🏠 Home", "📈 Analysis", "🔍 Datasets", "🤖 Machine Learning"])
