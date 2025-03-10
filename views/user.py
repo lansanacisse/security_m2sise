@@ -12,12 +12,6 @@ def user_page():
 
     # Sidebar navigation with streamlit-option-menu
     with st.sidebar:
-        # User info section
-        st.markdown("### User Info")
-        st.markdown(f"**Username:** {st.session_state.username}")
-        st.markdown("**Status:** Active")
-        st.markdown("---")
-
         # Navigation menu with icons
         selected_tab = option_menu(
             menu_title="Navigation",  # Titre du menu

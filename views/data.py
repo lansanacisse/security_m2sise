@@ -5,7 +5,6 @@ import plotly.express as px
 from datetime import datetime
 
 st.set_page_config(page_title="Analyse des logs de firewall", layout="wide")
-st.title("Analyse des logs de firewall")
 
 def load_data():
     """Fonction pour charger et préparer les données."""
@@ -42,33 +41,29 @@ def render_data_explorer(df):
     """Fonction pour explorer les données avec des filtres."""
     st.header("Explorer les données")
     
-    # Créer des colonnes pour les filtres
-    col1, col2, col3 = st.columns(3)
+    # Section des filtres avec mise en page améliorée
+    st.subheader("Filtres")
     
-    # Filtres
+    # Utiliser deux colonnes pour les filtres principaux
+    col1, col2 = st.columns(2)
+    
     with col1:
         # Filtre par action (PERMIT/DENY)
         if "action" in df.columns:
             actions = ["Tous"] + df["action"].unique().to_list()
             selected_action = st.selectbox("Action", actions)
         
-        # Filtre par IP source
-        if "IPsrc" in df.columns:
-            src_ips = ["Tous"] + df["IPsrc"].unique().to_list()
-            selected_src_ip = st.selectbox("IP Source", src_ips)
-    
-    with col2:
         # Filtre par protocole
         if "Protocole" in df.columns:
             protocols = ["Tous"] + df["Protocole"].unique().to_list()
             selected_protocol = st.selectbox("Protocole", protocols)
-        
+    
+    with col2:
         # Filtre par port de destination
         if "Port_dst" in df.columns:
             dst_ports = ["Tous"] + df["Port_dst"].unique().to_list()
             selected_dst_port = st.selectbox("Port de destination", dst_ports)
-    
-    with col3:
+        
         # Filtre par plage de temps
         if "Date" in df.columns:
             min_date = df["Date"].min().date()
@@ -87,10 +82,6 @@ def render_data_explorer(df):
     # Filtre par action
     if "action" in df.columns and selected_action != "Tous":
         filtered_df = filtered_df.filter(pl.col("action") == selected_action)
-    
-    # Filtre par IP source
-    if "IPsrc" in df.columns and selected_src_ip != "Tous":
-        filtered_df = filtered_df.filter(pl.col("IPsrc") == selected_src_ip)
     
     # Filtre par protocole
     if "Protocole" in df.columns and selected_protocol != "Tous":
@@ -113,40 +104,45 @@ def render_data_explorer(df):
             (pl.col("Date") <= end_datetime)
         )
     
-    # Afficher les données filtrées
+    # Afficher les données filtrées avec un titre clair
     st.subheader("Données filtrées")
-    st.dataframe(filtered_df.to_pandas())
+    st.dataframe(filtered_df.to_pandas(), use_container_width=True)
     
-    # Afficher des statistiques
-    st.subheader("Statistiques")
-    col1, col2 = st.columns(2)
+    # Compte des lignes filtrées
+    st.info(f"Nombre d'enregistrements affichés: {filtered_df.height}")
     
-    with col1:
-        if "action" in df.columns:
-            action_counts = filtered_df.group_by("action").agg(pl.count()).sort("count", descending=True)
-            st.write("Répartition des actions:")
+    # # Afficher des statistiques avec titre plus visible
+    # st.subheader("Statistiques")
+    # col1, col2 = st.columns(2)
+    
+    # with col1:
+    #     if "action" in df.columns:
+    #         action_counts = filtered_df.group_by("action").agg(pl.count()).sort("count", descending=True)
+    #         st.write("Répartition des actions:")
             
-            # Créer un graphique avec Plotly
-            fig = px.pie(
-                action_counts.to_pandas(), 
-                names="action", 
-                values="count", 
-                title="Répartition des actions"
-            )
-            st.plotly_chart(fig)
+    #         # Créer un graphique avec Plotly
+    #         fig = px.pie(
+    #             action_counts.to_pandas(), 
+    #             names="action", 
+    #             values="count", 
+    #             title="Répartition des actions"
+    #         )
+    #         fig.update_layout(height=400)
+    #         st.plotly_chart(fig, use_container_width=True)
     
-    with col2:
-        if "IPsrc" in df.columns:
-            ip_counts = filtered_df.group_by("IPsrc").agg(pl.count()).sort("count", descending=True).head(10)
-            st.write("Top 10 des IPs sources:")
+    # with col2:
+    #     if "IPsrc" in df.columns:
+    #         ip_counts = filtered_df.group_by("IPsrc").agg(pl.count()).sort("count", descending=True).head(10)
+    #         st.write("Top 10 des IPs sources:")
             
-            fig = px.bar(
-                ip_counts.to_pandas(), 
-                x="IPsrc", 
-                y="count", 
-                title="Top 10 des IPs sources"
-            )
-            st.plotly_chart(fig)
+    #         fig = px.bar(
+    #             ip_counts.to_pandas(), 
+    #             x="IPsrc", 
+    #             y="count", 
+    #             title="Top 10 des IPs sources"
+    #         )
+    #         fig.update_layout(height=400)
+    #         st.plotly_chart(fig, use_container_width=True)
 
 def explore_data():
     """Fonction principale pour afficher les données sous forme de tableau et analyses."""
@@ -159,5 +155,3 @@ def explore_data():
             render_data_explorer(df)
     except Exception as e:
         st.error(f"Erreur lors de l'analyse des données: {e}")
-
-
