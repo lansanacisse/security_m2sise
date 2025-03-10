@@ -3,6 +3,7 @@ import polars as pl
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
+from db import LogDatabase
 
 
 # Définition des plages de ports selon la RFC 6056 et options complémentaires
@@ -24,25 +25,14 @@ def load_data():
     Date;IPsrc;IPdst;Protocole;Port_src;Port_dst;idRegle;action;interface_entrée;interface_sortie
     """
     try:
-        df = pl.read_csv(
-            "data/sample.txt",
-            separator=";",
-            has_header=False,
-            new_columns=[
-                "Date",
-                "IPsrc",
-                "IPdst",
-                "Protocole",
-                "Port_src",
-                "Port_dst",
-                "idRegle",
-                "action",
-                "interface_entrée",
-                "interface_sortie",
-            ],
-        )
+        db = LogDatabase()
+        
+        df = db.get_logs_sample()
+
+        st.write("Aperçu des données:")
+        st.write(df.head(5))
         # Conversion de la date au format datetime
-        df = df.with_columns(pl.col("Date").str.to_datetime("%Y-%m-%d %H:%M:%S"))
+        # df = df.with_columns(pl.col("Date").str.to_datetime("%Y-%m-%d %H:%M:%S"))
         # Conversion des ports en entiers
         df = df.with_columns([
             pl.col("Port_src").cast(pl.Int32),
@@ -59,7 +49,7 @@ def apply_filters(df):
     
     # Filtre par protocole (on se focalise sur TCP et UDP)
     protocoles = ["Tous", "TCP", "UDP"]
-    selected_protocol = st.sidebar.selectbox("Protocole", protocoles)
+    selected_protocol = st.sidebar.selectbox("Protocol", protocoles)
     
     # Filtre par action (autorisé ou rejeté)
     actions = ["Tous", "PERMIT", "DENY"]
@@ -85,7 +75,7 @@ def apply_filters(df):
     
     # Filtre sur le protocole
     if selected_protocol != "Tous":
-        filtered_df = filtered_df.filter(pl.col("Protocole") == selected_protocol)
+        filtered_df = filtered_df.filter(pl.col("Protocol") == selected_protocol)
     
     # Filtre sur l'action (autorisé vs rejeté)
     if selected_action != "Tous":
@@ -116,7 +106,7 @@ def plot_analysis(filtered_df):
     st.subheader("Métriques des Flux")
     
     action_counts = df_pd["action"].value_counts(normalize=True) * 100
-    protocol_counts = df_pd["Protocole"].value_counts(normalize=True) * 100
+    protocol_counts = df_pd["Protocol"].value_counts(normalize=True) * 100
     source_counts = df_pd["IPsrc"].value_counts(normalize=True) * 100
     destination_counts = df_pd["IPdst"].value_counts(normalize=True) * 100
     
@@ -168,10 +158,10 @@ def plot_analysis(filtered_df):
     
     # 2. Sunburst Plot
     st.subheader("Répartition hiérarchique des flux")
-    sunburst_data = df_pd.groupby(["Protocole", "action", "IPsrc"]).size().reset_index(name="Nombre")
+    sunburst_data = df_pd.groupby(["Protocol", "action", "IPsrc"]).size().reset_index(name="Nombre")
     fig_sunburst = px.sunburst(
         sunburst_data,
-        path=["Protocole", "action", "IPsrc"],
+        path=["Protocol", "action", "IPsrc"],
         values="Nombre",
         title="Répartition des flux par protocole, action et source"
     )
@@ -182,7 +172,7 @@ def plot_analysis(filtered_df):
     fig_violin = px.violin(
         df_pd,
         y="Port_src",
-        x="Protocole",
+        x="Protocol",
         color="action",
         box=True,
         points="all",

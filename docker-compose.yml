@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+  postgres:
+    container_name: nlpDBPostgres
+    image: postgres:latest
+    ports:
+        - "32001:5432"
+    environment:
+        POSTGRES_DB: nlp
+        POSTGRES_USER: nlp
+        POSTGRES_PASSWORD: nlp
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nlp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5  
+
+  client:
+    image: security-challenge-client
+    build:
+      dockerfile: Dockerfile
+    container_name: client
+    ports:
+      - "8502:8502"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: nlp
+      POSTGRES_PASSWORD: nlp
+      POSTGRES_DBNAME: nlp
+      POSTGRES_PORT: 5432
