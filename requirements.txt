@@ -1,3 +1,11 @@
 streamlit
 pydantic
-streamlit_elements
+matplotlib
+seaborn
+pandas
+numpy
+scipy
+scikit-learn
+streamlit_option_menu
+psycopg2-binary
+dotenv

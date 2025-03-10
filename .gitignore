@@ -12,3 +12,8 @@ venv/
 
 # SQLite database file
 security.db
+
+# environment
+.env
+
+*.ipynb
