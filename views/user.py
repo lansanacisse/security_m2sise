@@ -1,9 +1,9 @@
 import streamlit as st
 from streamlit_option_menu import option_menu
 from db import Database, LogDatabase
-from .analysis import analyze_logs  # Removed the dot (.) before 'analysis'
-from .data import explore_data  # Removed the dot (.) before 'data'
-from .protocol import analyze_protocols  # Removed the dot (.) before 'protocol'
+from .analysis import analyze_logs  #
+from .data import explore_data  
+from .protocol import analyze_flows  
 
 def user_page():
     """User Dashboard page."""
@@ -57,7 +57,7 @@ def user_page():
         explore_data()
     elif selected_tab == "Protocol":  # Fixed typo in "Protocol"
         st.write("Protocol content coming soon!")  # Fixed typo in "Protocol"
-        analyze_protocols()
+        analyze_flows()
 
     elif selected_tab == "Machine Learning":
         st.write("Machine Learning content coming soon!")
