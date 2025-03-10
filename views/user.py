@@ -1,8 +1,8 @@
 import streamlit as st
+from streamlit_option_menu import option_menu
 from db import Database, LogDatabase
-from streamlit_elements import elements, mui, html
 from .analysis import analyze_logs
-
+from .data import explore_data
 
 def user_page():
     """User Dashboard page."""
@@ -10,21 +10,65 @@ def user_page():
     # Title
     st.title(f"User Dashboard - Welcome, {st.session_state.username}!")
 
-    # Tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["🏠 Home", "📈 Analysis", "🔍 Datasets", "🤖 Machine Learning"])
+    # Sidebar navigation with streamlit-option-menu
+    with st.sidebar:
+        # User info section
+        st.markdown("### User Info")
+        st.markdown(f"**Username:** {st.session_state.username}")
+        st.markdown("**Status:** Active")
+        st.markdown("---")
 
-    with tab1:
+        # Navigation menu with icons
+        selected_tab = option_menu(
+            menu_title="Navigation",  # Titre du menu
+            options=["Home", "Analysis", "Datasets", "Machine Learning"],  # Options du menu
+            icons=["house", "bar-chart", "search", "robot"],  # Icônes pour chaque option
+            menu_icon="cast",  # Icône du menu
+            default_index=0,  # Option sélectionnée par défaut
+            styles={
+                "container": {"padding": "5px", "background-color": "#f0f2f6"},  # Style du conteneur
+                "icon": {"color": "orange", "font-size": "18px"},  # Style des icônes
+                "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0px", "color": "black"},  # Style des liens
+                "nav-link-selected": {"background-color": "#4CAF50", "color": "white"},  # Style de l'option sélectionnée
+            }
+        )
+
+        # Quick links section
+        st.markdown("---")
+        st.markdown("### Quick Links")
+        if st.button("📄 Documentation"):
+            st.write("Redirecting to documentation...")
+        if st.button("🛠️ Settings"):
+            st.write("Redirecting to settings...")
+        if st.button("📤 Logout"):
+            st.write("Logging out...")
+            # Add logout logic here
+
+    # Content based on selection
+    if selected_tab == "Home":
         st.write("Welcome to the Security M2 SISE dashboard!")
+        st.markdown("""
+            **Overview:**
+            - View your security logs
+            - Analyze data trends
+            - Explore datasets
+            - Apply machine learning models
+        """)
 
-    with tab2:
-        st.write("This section will contain model analysis.")
+    elif selected_tab == "Analysis":
         analyze_logs()
         
-    with tab3:
-        st.write("Here you can explore datasets.")
+    elif selected_tab == "Datasets":
+        explore_data()
 
-    with tab4:
-        st.write("Using the machine model.")
+    elif selected_tab == "Machine Learning":
+        st.write("Machine Learning content coming soon!")
+        st.markdown("""
+            **Planned Features:**
+            - Model training
+            - Prediction analysis
+            - Model evaluation
+        """)
 
     # Example of database usage (uncomment if needed)
     # db = LogDatabase()
