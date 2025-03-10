@@ -9,3 +9,5 @@ scikit-learn
 streamlit_option_menu
 psycopg2-binary
 dotenv
+polars
+plotly

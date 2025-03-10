@@ -3,25 +3,31 @@ from streamlit_option_menu import option_menu
 from db import Database, LogDatabase
 from views.analysis import analyze_logs  #
 from views.data import explore_data  
-from views.protocol import analyze_flows  
+from views.protocol import analyze_flows 
+from views.upload import upload_page 
+
+from db import LogDatabase
+
 
 def user_page():
-    """User Dashboard page."""
+
 
     # Sidebar navigation with streamlit-option-menu
     with st.sidebar:
+        # st.image("img/logo.png", use_container_width=True)
+        # st.markdown("<h1 style='text-align: center;'>SecureIA Dashboard</h1>", unsafe_allow_html=True)
         # Navigation menu with icons
         selected_tab = option_menu(
             menu_title=None,  # Added menu_title parameter
-            options=["Home", "Analysis", "Datasets", "Protocol", "Machine Learning"],  # Fixed typo in "Protocol"
-            icons=["house", "bar-chart", "search", "robot", "cpu"],
+            options=["Home", "Upload", "Analysis", "Datasets", "Protocol", "Machine Learning"],
+            icons=["house", "arrow-up", "bar-chart", "search", "robot", "cpu"],
             menu_icon="cast",
             default_index=0,
             styles={
-                "container": {"padding": "5px", "background-color": "#f0f2f6"},
-                "icon": {"color": "orange", "font-size": "18px"},
-                "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0px", "color": "black"},
-                "nav-link-selected": {"background-color": "#4CAF50", "color": "white"},
+            "container": {"padding": "5px", "background-color": "#f0f2f6"},
+            "icon": {"color": "orange", "font-size": "18px"},
+            "nav-link": {"font-size": "16px", "text-align": "left", "margin": "0px", "color": "black"},
+            "nav-link-selected": {"background-color": "#4CAF50", "color": "white"},
             }
         )
     
@@ -37,6 +43,8 @@ def user_page():
             - Apply machine learning models
         """)
 
+    elif selected_tab == "Upload":
+        upload_page()
     elif selected_tab == "Analysis":
         st.title("Analyse des logs de sécurité")
         analyze_logs()
@@ -59,18 +67,35 @@ def user_page():
     
    # Quick links section after filters and content
     st.markdown("---")
-    st.markdown("### Quick Links")
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
+
     with col1:
-        if st.button("📄 Documentation"):
-            st.write("Redirecting to documentation...")
-            # Redirection vers la page de documentation
-            st.session_state.current_page = "Documentation"
-            st.experimental_rerun()
+        st.markdown("### About")
+        st.write("This dashboard is maintained by the Security M2 SISE team.")
+        st.write("For more information, please visit the [GitHub repository](https://github.com/lansanacisse/security_m2sise/tree/develop).")
+
     with col2:
-        if st.button("🛠️ Settings"):
-            st.write("Redirecting to settings...")
-    with col3:
-        if st.button("📤 Logout"):
-            st.write("Logging out...")
-            # Add logout logic here
+        st.markdown("### Collaborators")
+        st.write("""
+        - [Lansana Sise](https://github.com/jdalfons)
+        - [Quentin lim](https://github.com/jdalfons)
+        - [Juan Alfonso](https://github.com/jdalfons)
+        - [OPSIE1](https://github.com/jdalfons)
+        - [OPSIE2](https://github.com/jdalfons)
+        """)
+        
+    # st.markdown("### Quick Links")
+    # col1, col2, col3 = st.columns(3)
+    # with col1:
+    #     if st.button("📄 Documentation"):
+    #         st.write("Redirecting to documentation...")
+    #         # Redirection vers la page de documentation
+    #         st.session_state.current_page = "Documentation"
+    #         st.experimental_rerun()
+    # with col2:
+    #     if st.button("🛠️ Settings"):
+    #         st.write("Redirecting to settings...")
+    # with col3:
+    #     if st.button("📤 Logout"):
+    #         st.write("Logging out...")
+    #         # Add logout logic here

@@ -7,6 +7,7 @@ import polars as pl
 import plotly.express as px
 import plotly.graph_objects as go
 import ipaddress
+from db import LogDatabase
 
 
 # Définition des plages avec RFC 1918, à vérifier ?
@@ -27,27 +28,12 @@ def is_internal_ip(ip: str) -> bool:
 def analyze_logs():
     # Read the log fileq
     try:
-        df = pl.read_csv(
-            "data/sample.txt",
-            separator=";",
-            has_header=False,
-            new_columns=[
-                "Date",
-                "IPsrc",
-                "IPdst",
-                "Protocole",
-                "Port_src",
-                "Port_dst",
-                "idRegle",
-                "action",
-                "interface_entrée",
-                "interface_sortie",
-            ],
-        )
+        db = LogDatabase()
+        
+        df = db.get_logs_sample()
 
-        # Affichage des données brutes
-        # st.write("Aperçu des données:")
-        # st.write(df.head(5))
+        st.write("Aperçu des données:")
+        st.write(df.head(5))
 
         # TODO PARTIE 3 ----------------------------
         # Visualisation interactive des données
@@ -124,19 +110,19 @@ def analyze_logs():
 
         # Détails supplémentaires dans un expander
         with st.expander("Détails des connexions"):
-            # Table des connexions détaillées
+            # Table des connexions détaillées (en supprimant Protocole, qui n'est pas disponible)
             connections_detail = (
-                ip_details.select(["IPdst", "Port_dst", "Protocole", "action"])
-                .group_by(["IPdst", "Port_dst", "Protocole", "action"])
-                .agg(pl.count().alias("occurrences"))
-                .sort("occurrences", descending=True)
+            ip_details.select(["IPdst", "Port_dst", "action"])
+            .group_by(["IPdst", "Port_dst", "action"])
+            .agg(pl.count().alias("occurrences"))
+            .sort("occurrences", descending=True)
             )
 
             st.write("Détail des connexions :")
             st.dataframe(
-                connections_detail.to_pandas().style.background_gradient(
-                    subset=["occurrences"], cmap="YlOrRd"
-                )
+            connections_detail.to_pandas().style.background_gradient(
+                subset=["occurrences"], cmap="YlOrRd"
+            )
             )
 
         # Métriques globales
@@ -145,13 +131,13 @@ def analyze_logs():
             st.metric("Nombre total de destinations", ip_details["IPdst"].n_unique())
         with col2:
             st.metric(
-                "Connexions autorisées",
-                ip_details.filter(pl.col("action") == "PERMIT").height,
+            "Connexions autorisées",
+            ip_details.filter(pl.col("action") == "PERMIT").height,
             )
         with col3:
             st.metric(
-                "Connexions refusées",
-                ip_details.filter(pl.col("action") == "DENY").height,
+            "Connexions refusées",
+            ip_details.filter(pl.col("action") == "DENY").height,
             )
         # ----------------- PARTIE 4 -----------------
 
@@ -159,7 +145,7 @@ def analyze_logs():
         # TOP 5 des IP sources
         ############################################################################################################
 
-        st.subheader("Top 5 des IP Sources les plus émettrices")
+        st.subheader("Top 5 des IP Sources les plus émetteurs")
         top_ips = (
             df.select(pl.col("IPsrc"))
             .group_by("IPsrc")
@@ -177,20 +163,20 @@ def analyze_logs():
         )
         st.plotly_chart(fig_top_ips)
 
-        # Distribution des actions par protocole (Sunburst)
-        st.subheader("Distribution des actions par protocole")
+        # Distribution des actions par protocol (Sunburst)
+        st.subheader("Distribution des actions par protocol")
         protocol_actions = (
-            df.select(["Protocole", "action"])
-            .group_by(["Protocole", "action"])
+            df.select(["Protocol", "action"])
+            .group_by(["Protocol", "action"])
             .count()
             .sort("count", descending=True)
         )
 
         fig_sunburst = px.sunburst(
             protocol_actions.to_pandas(),
-            path=["Protocole", "action"],
+            path=["Protocol", "action"],
             values="count",  # Changed from "counts" to "count"
-            title="Actions par Protocole",
+            title="Actions par Protocol",
         )
         st.plotly_chart(fig_sunburst)
 

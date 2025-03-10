@@ -2,7 +2,7 @@ import psycopg2
 import psycopg2.extras
 import hashlib
 import logging
-import pandas as pd
+import polars as pl
 import streamlit as st
 from typing import Optional, List
 from pydantic import BaseModel
@@ -97,9 +97,32 @@ class LogDatabase(Database):
         conn.close()
     
     def get_logs_sample(self, limit=10):
+        """
+        Retrieve a sample of logs from the database with a limit.
+        """
         conn = self._get_connection()
+        cursor = conn.cursor()
         query = "SELECT * FROM logs LIMIT %s"
-        df = pd.read_sql_query(query, conn, params=(limit,))
+        cursor.execute(query, (limit,))
+        # Fetch all rows and extract column names from cursor.description
+        rows = cursor.fetchall()
+        columns=[
+                "ID",
+                "Date",
+                "IPsrc",
+                "IPdst",
+                "Protocol",
+                "Port_src",
+                "Port_dst",
+                "idRule",
+                "action",
+                "interface_entrée",
+                "interface_sortie",
+                "firewall",
+            ]
+        # Create Polars DataFrame from the rows
+        df = pl.DataFrame(rows, schema=columns)
+        cursor.close()
         conn.close()
         return df
     
@@ -112,7 +135,7 @@ class LogDatabase(Database):
         conn.close()
         return count
     
-    def upload_csv_to_logs(self, df: pd.DataFrame):
+    def upload_csv_to_logs(self, df: pl.DataFrame):
         try:
             # Validate columns against the Logs model
             required_columns = [
@@ -134,8 +157,8 @@ class LogDatabase(Database):
             if missing_columns:
                 return False, f"Missing columns: {', '.join(missing_columns)}"
             
-            # Convert DataFrame to a list of dictionaries
-            logs_data = df[required_columns].to_dict('records')
+            # Convert DataFrame to a list of dictionaries using Polars
+            logs_data = df.select(required_columns).to_dicts()
             
             conn = self._get_connection()
             cursor = conn.cursor()
