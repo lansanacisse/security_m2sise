@@ -28,7 +28,7 @@ def analyze_logs():
     # Read the log fileq
     try:
         df = pl.read_csv(
-            "data/sample.txt",
+            "data/log_export.log",
             separator=";",
             has_header=False,
             new_columns=[
@@ -49,7 +49,7 @@ def analyze_logs():
         # st.write("Aperçu des données:")
         # st.write(df.head(5))
 
-        # TODO PARTIE 3 ----------------------------
+        # TODO PARTIE 3 ---------------------------- plage de port
         # Visualisation interactive des données
         # Visualisation interactive des données (IP source avec le nombre d’occurrences de destination contactées, incluant le nombre de flux rejetés et autorisés).
         st.header("Analyse des connexions par IP source")
@@ -153,6 +153,91 @@ def analyze_logs():
                 "Connexions refusées",
                 ip_details.filter(pl.col("action") == "DENY").height,
             )
+
+        st.header("Analyse des connexions par plage de ports")
+
+        # Création du slider pour la plage de ports
+        min_port = int(df["Port_dst"].min())
+        max_port = int(df["Port_dst"].max())
+        port_range = st.slider(
+            "Sélectionner une plage de ports",
+            min_value=min_port,
+            max_value=max_port,
+            value=(min_port, max_port),
+            step=1,
+        )
+
+        # Filtrage des données selon la plage de ports
+        filtered_data = df.filter(
+            (pl.col("Port_dst") >= port_range[0])
+            & (pl.col("Port_dst") <= port_range[1])
+        )
+
+        # Préparation des données pour le scatter plot
+        port_stats = (
+            filtered_data.group_by(["IPsrc", "Port_dst"])
+            .agg(
+                [
+                    pl.n_unique("IPdst").alias("nb_destinations"),
+                    pl.col("action")
+                    .filter(pl.col("action") == "PERMIT")
+                    .count()
+                    .alias("permit_count"),
+                    pl.col("action")
+                    .filter(pl.col("action") == "DENY")
+                    .count()
+                    .alias("deny_count"),
+                ]
+            )
+            .sort("nb_destinations", descending=True)
+        )
+
+        # Création du scatter plot
+        fig_scatter = px.scatter(
+            port_stats.to_pandas(),
+            x="Port_dst",
+            y="nb_destinations",
+            size="permit_count",  # Taille selon le nombre de PERMIT
+            color="deny_count",  # Couleur selon le nombre de DENY
+            hover_data={
+                "IPsrc": True,
+                "Port_dst": True,
+                "permit_count": True,
+                "deny_count": True,
+            },
+            labels={
+                "Port_dst": "Port de destination",
+                "nb_destinations": "Nombre de destinations uniques",
+                "permit_count": "Connexions autorisées",
+                "deny_count": "Connexions refusées",
+                "IPsrc": "IP Source",
+            },
+            title=f"Distribution des connexions par port (Ports {port_range[0]} à {port_range[1]})",
+        )
+
+        # Personnalisation du graphique
+        fig_scatter.update_traces(
+            marker=dict(sizemin=5, sizeref=0.1, sizemode="area"),
+            hovertemplate="<br>".join(
+                [
+                    "IP Source: %{customdata[0]}",
+                    "Port: %{x}",
+                    "Destinations: %{y}",
+                    "Autorisées: %{customdata[2]}",
+                    "Refusées: %{customdata[3]}",
+                ]
+            ),
+        )
+
+        # Mise en page
+        fig_scatter.update_layout(
+            height=600, showlegend=True, coloraxis_colorbar_title="Connexions refusées"
+        )
+
+        # Affichage du graphique
+        st.plotly_chart(fig_scatter, use_container_width=True)
+        st.write("test")
+
         # ----------------- PARTIE 4 -----------------
 
         ############################################################################################################
