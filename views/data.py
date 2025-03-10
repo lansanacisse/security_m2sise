@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 
+# Configuration de la page
 st.set_page_config(page_title="Analyse des logs de firewall", layout="wide")
 
 def load_data():
@@ -28,7 +29,7 @@ def load_data():
             ],
         )
         
-        # Reconnaître et convertir les valeurs pour timestamp
+        # Convertir la colonne "Date" en datetime
         if "Date" in df.columns:
             df = df.with_columns(pl.col("Date").str.to_datetime("%Y-%m-%d %H:%M:%S"))
         
@@ -39,42 +40,40 @@ def load_data():
 
 def render_data_explorer(df):
     """Fonction pour explorer les données avec des filtres."""
-    st.header("Explorer les données")
     
-    # Section des filtres avec mise en page améliorée
-    st.subheader("Filtres")
+    # Section des filtres dans la sidebar
+    st.sidebar.subheader("Filtres")
     
-    # Utiliser deux colonnes pour les filtres principaux
-    col1, col2 = st.columns(2)
+    # Filtre par action (PERMIT/DENY)
+    selected_action = "Tous"
+    if "action" in df.columns:
+        actions = ["Tous"] + df["action"].unique().to_list()
+        selected_action = st.sidebar.selectbox("Action", actions)
     
-    with col1:
-        # Filtre par action (PERMIT/DENY)
-        if "action" in df.columns:
-            actions = ["Tous"] + df["action"].unique().to_list()
-            selected_action = st.selectbox("Action", actions)
+    # Filtre par protocole
+    selected_protocol = "Tous"
+    if "Protocole" in df.columns:
+        protocols = ["Tous"] + df["Protocole"].unique().to_list()
+        selected_protocol = st.sidebar.selectbox("Protocole", protocols)
+    
+    # Filtre par port de destination
+    selected_dst_port = "Tous"
+    if "Port_dst" in df.columns:
+        dst_ports = ["Tous"] + df["Port_dst"].unique().to_list()
+        selected_dst_port = st.sidebar.selectbox("Port de destination", dst_ports)
+    
+    # Filtre par plage de temps
+    date_range = [df["Date"].min().date(), df["Date"].max().date()]
+    if "Date" in df.columns:
+        min_date = df["Date"].min().date()
+        max_date = df["Date"].max().date()
         
-        # Filtre par protocole
-        if "Protocole" in df.columns:
-            protocols = ["Tous"] + df["Protocole"].unique().to_list()
-            selected_protocol = st.selectbox("Protocole", protocols)
-    
-    with col2:
-        # Filtre par port de destination
-        if "Port_dst" in df.columns:
-            dst_ports = ["Tous"] + df["Port_dst"].unique().to_list()
-            selected_dst_port = st.selectbox("Port de destination", dst_ports)
-        
-        # Filtre par plage de temps
-        if "Date" in df.columns:
-            min_date = df["Date"].min().date()
-            max_date = df["Date"].max().date()
-            
-            date_range = st.date_input(
-                "Plage de dates",
-                [min_date, max_date],
-                min_value=min_date,
-                max_value=max_date
-            )
+        date_range = st.sidebar.date_input(
+            "Plage de dates",
+            [min_date, max_date],
+            min_value=min_date,
+            max_value=max_date
+        )
     
     # Appliquer les filtres
     filtered_df = df.clone()
@@ -111,38 +110,38 @@ def render_data_explorer(df):
     # Compte des lignes filtrées
     st.info(f"Nombre d'enregistrements affichés: {filtered_df.height}")
     
-    # # Afficher des statistiques avec titre plus visible
-    # st.subheader("Statistiques")
-    # col1, col2 = st.columns(2)
+    # Section des statistiques
+    st.subheader("Statistiques")
+    col1, col2 = st.columns(2)
     
-    # with col1:
-    #     if "action" in df.columns:
-    #         action_counts = filtered_df.group_by("action").agg(pl.count()).sort("count", descending=True)
-    #         st.write("Répartition des actions:")
+    with col1:
+        if "action" in df.columns:
+            action_counts = filtered_df.group_by("action").agg(pl.count()).sort("count", descending=True)
+            st.write("Répartition des actions:")
             
-    #         # Créer un graphique avec Plotly
-    #         fig = px.pie(
-    #             action_counts.to_pandas(), 
-    #             names="action", 
-    #             values="count", 
-    #             title="Répartition des actions"
-    #         )
-    #         fig.update_layout(height=400)
-    #         st.plotly_chart(fig, use_container_width=True)
+            # Créer un graphique avec Plotly
+            fig = px.pie(
+                action_counts.to_pandas(), 
+                names="action", 
+                values="count", 
+                title="Répartition des actions"
+            )
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
     
-    # with col2:
-    #     if "IPsrc" in df.columns:
-    #         ip_counts = filtered_df.group_by("IPsrc").agg(pl.count()).sort("count", descending=True).head(10)
-    #         st.write("Top 10 des IPs sources:")
+    with col2:
+        if "IPsrc" in df.columns:
+            ip_counts = filtered_df.group_by("IPsrc").agg(pl.count()).sort("count", descending=True).head(10)
+            st.write("Top 10 des IPs sources:")
             
-    #         fig = px.bar(
-    #             ip_counts.to_pandas(), 
-    #             x="IPsrc", 
-    #             y="count", 
-    #             title="Top 10 des IPs sources"
-    #         )
-    #         fig.update_layout(height=400)
-    #         st.plotly_chart(fig, use_container_width=True)
+            fig = px.bar(
+                ip_counts.to_pandas(), 
+                x="IPsrc", 
+                y="count", 
+                title="Top 10 des IPs sources"
+            )
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
 
 def explore_data():
     """Fonction principale pour afficher les données sous forme de tableau et analyses."""
@@ -155,3 +154,4 @@ def explore_data():
             render_data_explorer(df)
     except Exception as e:
         st.error(f"Erreur lors de l'analyse des données: {e}")
+
