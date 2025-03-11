@@ -25,9 +25,9 @@ def load_parquet_data():
     """Charge et met en cache les données du fichier Parquet"""
     try:
         db = LogDatabase()
-        
+
         df = db.get_logs_sample()
-        
+
         return df
     except Exception as e:
         st.error(f"Erreur lors de la lecture du fichier: {e}")
@@ -65,7 +65,7 @@ def calculate_port_stats(_df, port_range):
     """Calcule et met en cache les statistiques par port"""
     # Conversion en entier pour la comparaison numérique
     filtered_data = _df.filter(
-        (pl.col("Port_dst").cast(pl.Int32) >= port_range[0]) 
+        (pl.col("Port_dst").cast(pl.Int32) >= port_range[0])
         & (pl.col("Port_dst").cast(pl.Int32) <= port_range[1])
     )
     return filtered_data
@@ -87,13 +87,14 @@ def calculate_top_ports(_df, max_port=1024, limit=10):
     """Calcule et met en cache les statistiques des ports les plus utilisés"""
     return (
         _df.filter(
-            (pl.col("Port_dst").cast(pl.Int32) < max_port)
+            (pl.col("Port_dst").cast(pl.Int32).lt(pl.lit(max_port)))
             & (pl.col("action") == "PERMIT")
         )
         .group_by("Port_dst")
-        .agg([pl.count().alias("count"), pl.first("Protocol").alias("protocol")])
+        .agg([pl.count().alias("count"), pl.first("Protocole").alias("protocole")])
         .sort("count", descending=True)
         .limit(limit)
+        .with_columns([pl.col("Port_dst").cast(pl.Utf8).alias("Port_dst")])
     )
 
 
@@ -129,14 +130,14 @@ def is_internal_ip(ip: str) -> bool:
 def render_ip_analysis(df_sample, ip_stats, selected_ip, date_range):
     """Rendu de l'analyse pour une IP spécifique"""
     st.header(f"Analyse de l'IP source: {selected_ip}")
-    
+
     # Récupération des détails pour l'IP sélectionnée
     ip_details = get_ip_details(df_sample, selected_ip)
-    
+
     if ip_details.height == 0:
         st.warning(f"Aucune donnée trouvée pour l'IP {selected_ip} dans l'échantillon")
         return
-    
+
     col1, col2 = st.columns(2)
 
     with col1:
@@ -235,7 +236,7 @@ def render_ip_analysis(df_sample, ip_stats, selected_ip, date_range):
     with pie2:
         # Protocol distribution pie chart
         proto_dist = (
-            ip_details.group_by("Protocol")
+            ip_details.group_by("Protocole")
             .agg(pl.count().alias("count"))
             .sort("count", descending=True)
         )
@@ -244,7 +245,7 @@ def render_ip_analysis(df_sample, ip_stats, selected_ip, date_range):
             fig_proto = px.pie(
                 proto_dist.to_pandas(),
                 values="count",
-                names="Protocol",
+                names="Protocole",
                 title=f"Distribution des protocoles pour {selected_ip}",
                 color_discrete_sequence=CUSTOM_COLORS,
             )
@@ -347,10 +348,10 @@ def render_ip_analysis(df_sample, ip_stats, selected_ip, date_range):
 
 def render_global_analysis(df_sample):
     """Rendu de l'analyse globale pour toutes les IP"""
-    
+
     # Dashboard global
     st.header("Tableau de bord général")
-    
+
     # Métriques générales
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -360,9 +361,11 @@ def render_global_analysis(df_sample):
     with col3:
         st.metric("Nombre d'IP destinations uniques", df_sample["IPdst"].n_unique())
     with col4:
-        permit_rate = (df_sample.filter(pl.col("action") == "PERMIT").height / df_sample.height) * 100
+        permit_rate = (
+            df_sample.filter(pl.col("action") == "PERMIT").height / df_sample.height
+        ) * 100
         st.metric("Taux d'autorisation", f"{permit_rate:.1f}%")
-    
+
     ################################# Top 5 des IP Sources les plus émettrices
     st.subheader("Top 5 des IP Sources les plus émettrices")
     top_ips = (
@@ -372,7 +375,7 @@ def render_global_analysis(df_sample):
         .sort("count", descending=True)
         .limit(5)
     )
-    
+
     if top_ips.height > 0:
         fig_top_ips = px.bar(
             top_ips.to_pandas(),
@@ -392,80 +395,45 @@ def render_global_analysis(df_sample):
     st.subheader("Top 10 des ports inférieurs à 1024 avec accès autorisé")
     top_ports = calculate_top_ports(df_sample)
 
-    if top_ports.height > 0:
-        # Conversion en liste pour l'ordre des catégories
-        port_order = top_ports["Port_dst"].to_list()
+    # st.write(top_ports)
 
-        fig_top_ports = px.bar(
-            top_ports.to_pandas(),
-            x="Port_dst",
-            y="count",
-            title="Top 10 Ports avec accès autorisé (< 1024)",
-            text="count",
-            color="Port_dst",
-            color_discrete_sequence=CUSTOM_COLORS,
-            category_orders={"Port_dst": port_order},  # Ordre personnalisé
-            hover_data=["protocol"],  # Afficher le protocole au survol
-        )
+    port_order = top_ports["Port_dst"].to_list()
 
-        # Personnalisation du graphique
-        fig_top_ports.update_xaxes(type="category")
-        fig_top_ports.update_traces(textposition="outside", width=0.8)
-        fig_top_ports.update_layout(
-            xaxis_title="Port de destination",
-            yaxis_title="Nombre de connexions",
-            height=500,
-            xaxis=dict(tickangle=-45),  # Rotation des étiquettes
-            margin=dict(t=50, b=100),  # Ajustement des marges
-        )
-        st.plotly_chart(fig_top_ports, use_container_width=True)
-    else:
-        st.info("Aucune donnée disponible pour les ports avec accès autorisé")
-    
-    # Carte de chaleur des IP sources vers les IP destinations
-    st.subheader("Carte de chaleur des connexions IP source → IP destination")
-    
-    # Limitation pour éviter les performances médiocres
-    hot_ips = (
-        df_sample.group_by(["IPsrc", "IPdst"])
-        .count()
-        .sort("count", descending=True)
-        .limit(100)  # Limiter aux 100 paires les plus fréquentes
+    fig_top_ports = px.bar(
+        top_ports.to_pandas(),
+        x="Port_dst",
+        y="count",
+        title="Top 10 Ports",
+        text="count",
+        color="Port_dst",
+        color_discrete_sequence=CUSTOM_COLORS,
+        category_orders={"Port_dst": port_order},  # Ordre personnalisé
     )
-    
-    # Création d'un pivot avec les sources en index, destinations en colonnes, et count comme valeur
-    if hot_ips.height > 0:
-        hot_ips_pd = hot_ips.to_pandas()
-        # Limiter à 15x15 pour la visibilité
-        src_top = hot_ips_pd["IPsrc"].value_counts().nlargest(15).index.tolist()
-        dst_top = hot_ips_pd["IPdst"].value_counts().nlargest(15).index.tolist()
-        
-        filtered_hot_ips = hot_ips_pd[hot_ips_pd["IPsrc"].isin(src_top) & hot_ips_pd["IPdst"].isin(dst_top)]
-        
-        # Créer une matrice pivot pour la heatmap
-        pivot_df = filtered_hot_ips.pivot_table(
-            index="IPsrc", columns="IPdst", values="count", fill_value=0
-        )
-        
-        fig_heatmap = px.imshow(
-            pivot_df,
-            text_auto=True,
-            aspect="auto",
-            color_continuous_scale=px.colors.sequential.Blues,
-            title="Fréquence des connexions entre les 15 principales IP sources/destinations",
-        )
-        fig_heatmap.update_layout(height=600)
-        st.plotly_chart(fig_heatmap, use_container_width=True)
-    else:
-        st.info("Données insuffisantes pour la carte de chaleur")
+
+    # Personnalisation du graphique
+    fig_top_ports.update_xaxes(type="category")
+
+    fig_top_ports.update_traces(
+        textposition="outside",
+        width=0.8,
+    )
+
+    fig_top_ports.update_layout(
+        xaxis_title="Port de destination",
+        yaxis_title="Nombre de connexions",
+        height=500,
+        xaxis=dict(tickangle=-45),  # Rotation des étiquettes
+        margin=dict(t=50, b=100),  # Ajustement des marges
+    )
+    st.plotly_chart(fig_top_ports, use_container_width=True)
 
     ################################ Classification des IPs (internes/externes)
     st.subheader("Analyse des flux réseau (interne/externe)")
     df_with_network_info = calculate_network_info(df_sample)
-    
+
     # Distribution interne/externe
     int_ext_col1, int_ext_col2 = st.columns(2)
-    
+
     with int_ext_col1:
         src_type_counts = (
             df_with_network_info.select(
@@ -477,16 +445,16 @@ def render_global_analysis(df_sample):
             .group_by("type_source")
             .count()
         )
-        
+
         fig_src_type = px.pie(
             src_type_counts.to_pandas(),
             values="count",
             names="type_source",
             title="Types d'IP sources",
-            color_discrete_map={"Interne": "#377EB8", "Externe": "#FF7F00"}
+            color_discrete_map={"Interne": "#377EB8", "Externe": "#FF7F00"},
         )
         st.plotly_chart(fig_src_type, use_container_width=True)
-    
+
     with int_ext_col2:
         dst_type_counts = (
             df_with_network_info.select(
@@ -498,16 +466,16 @@ def render_global_analysis(df_sample):
             .group_by("type_destination")
             .count()
         )
-        
+
         fig_dst_type = px.pie(
             dst_type_counts.to_pandas(),
             values="count",
             names="type_destination",
             title="Types d'IP destinations",
-            color_discrete_map={"Interne": "#377EB8", "Externe": "#FF7F00"}
+            color_discrete_map={"Interne": "#377EB8", "Externe": "#FF7F00"},
         )
         st.plotly_chart(fig_dst_type, use_container_width=True)
-    
+
     # Diagramme Sankey des flux réseau
     flux_data = (
         df_with_network_info.select(
@@ -523,7 +491,7 @@ def render_global_analysis(df_sample):
         .count()
         .sort("count", descending=True)
     )
-    
+
     if flux_data.height > 0:
         nodes = list(
             set(flux_data["source"].unique()) | set(flux_data["target"].unique())
@@ -592,7 +560,7 @@ def render_global_analysis(df_sample):
         st.plotly_chart(fig_sankey, use_container_width=True)
     else:
         st.info("Aucune donnée de flux réseau disponible")
-    
+
     # Détail des IPs externes
     st.subheader("Détail des IPs externes")
     external_ips = (
@@ -601,12 +569,12 @@ def render_global_analysis(df_sample):
         .agg(pl.count().alias("nombre_tentatives"))
         .sort("nombre_tentatives", descending=True)
     )
-    
+
     if external_ips.height > 0:
         st.dataframe(external_ips)
     else:
         st.info("Aucune IP externe détectée dans l'échantillon")
-        
+
 
 def analyze_logs():
 
@@ -619,22 +587,22 @@ def analyze_logs():
     # Configuration de la sidebar
     with st.sidebar:
         st.header("Filtres")
-        
+
         # Option pour échantillonner les données
         sample_size = st.slider(
-            "Nombre d'entrées à analyser (échantillon)", 
-            min_value=1000, 
-            max_value=min(100000, df.height), 
-            value=10000, 
-            step=1000
+            "Nombre d'entrées à analyser (échantillon)",
+            min_value=1000,
+            max_value=min(100000, df.height),
+            value=10000,
+            step=1000,
         )
-        
+
         # Échantillonnage des données
         df_sample = sample_data(df, n=sample_size)
-        
+
         # Calcul des statistiques IP
         ip_stats = calculate_ip_stats(df_sample)
-        
+
         # Sélection de l'IP source (pour l'onglet analyse IP)
         selected_ip = st.selectbox(
             "Sélectionner une IP source",
@@ -642,12 +610,12 @@ def analyze_logs():
             format_func=lambda x: f"{x} ({ip_stats.filter(pl.col('IPsrc') == x)['total_count'].item()} connexions)",
             key="ip_selector",
         )
-        
+
         # Filtre de période pour l'analyse temporelle
         ip_details = get_ip_details(df_sample, selected_ip)
         ip_details_pd = ip_details.to_pandas()
         ip_details_pd["Date"] = pd.to_datetime(ip_details_pd["Date"])
-        
+
         if not ip_details_pd.empty:
             date_range = st.date_input(
                 "Sélectionner la période d'analyse",
@@ -661,16 +629,16 @@ def analyze_logs():
         else:
             st.warning(f"Aucune donnée trouvée pour l'IP {selected_ip}")
             date_range = None
-            
+
         st.markdown("---")
-    
+
     # Création des onglets
     tab1, tab2 = st.tabs(["🔍 Analyse d'une adresse IP", "📊 Vue d'ensemble du réseau"])
-    
+
     # Contenu de l'onglet 1: Analyse d'une adresse IP spécifique
     with tab1:
         render_ip_analysis(df_sample, ip_stats, selected_ip, date_range)
-    
+
     # Contenu de l'onglet 2: Analyse de toutes les adresses
     with tab2:
         render_global_analysis(df_sample)

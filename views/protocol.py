@@ -49,7 +49,7 @@ def apply_filters(df):
     
     # Filtre par Protocol (on se focalise sur TCP et UDP)
     Protocols = ["Tous", "TCP", "UDP"]
-    selected_protocol = st.sidebar.selectbox("Protocol", Protocols)
+    selected_protocol = st.sidebar.selectbox("Protocole", Protocols)
     
     # Filtre par action (autorisé ou rejeté)
     actions = ["Tous", "PERMIT", "DENY"]
@@ -76,7 +76,7 @@ def apply_filters(df):
     
     # Filtre sur le Protocol
     if selected_protocol != "Tous":
-        filtered_df = filtered_df.filter(pl.col("Protocol") == selected_protocol)
+        filtered_df = filtered_df.filter(pl.col("Protocole") == selected_protocol)
     
     # Filtre sur l'action (autorisé vs rejeté)
     if selected_action != "Tous":
@@ -108,7 +108,7 @@ def plot_analysis(filtered_df):
     st.subheader("Métriques des Flux")
     
     action_counts = df_pd["action"].value_counts(normalize=True) * 100
-    protocol_counts = df_pd["Protocol"].value_counts(normalize=True) * 100
+    protocol_counts = df_pd["Protocole"].value_counts(normalize=True) * 100
     source_counts = df_pd["IPsrc"].value_counts(normalize=True) * 100
     destination_counts = df_pd["IPdst"].value_counts(normalize=True) * 100
     
@@ -160,12 +160,12 @@ def plot_analysis(filtered_df):
     
     # 2. Sunburst Plot
     st.subheader("Répartition hiérarchique des flux")
-    sunburst_data = df_pd.groupby(["Protocol", "action", "IPsrc"]).size().reset_index(name="Nombre")
+    sunburst_data = df_pd.groupby(["Protocole", "action", "IPsrc"]).size().reset_index(name="Nombre")
     fig_sunburst = px.sunburst(
         sunburst_data,
-        path=["Protocol", "action", "IPsrc"],
+        path=["Protocole", "action", "IPsrc"],
         values="Nombre",
-        title="Répartition des flux par Protocol, action et source"
+        title="Répartition des flux par Protocole, action et source"
     )
     st.plotly_chart(fig_sunburst, use_container_width=True)
     
@@ -174,11 +174,11 @@ def plot_analysis(filtered_df):
     fig_violin = px.violin(
         df_pd,
         y="Port_src",
-        x="Protocol",
+        x="Protocole",
         color="action",
         box=True,
         points="all",
-        title="Distribution des ports sources par Protocol et action"
+        title="Distribution des ports sources par Protocole et action"
     )
     st.plotly_chart(fig_violin, use_container_width=True)
     

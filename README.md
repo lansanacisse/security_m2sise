@@ -41,10 +41,94 @@ Projet collaboratif entre les étudiants de **OPSIE** et **SISE** pour :
 3. Ressources nécessaires :  
    - Mémoire suffisante pour traiter des fichiers allant **jusqu'à 200 Mo**.  
 
+
+## Déploiement
+
+L'application est disponible sur Hugging Face via le lien suivant :  
+[Lien vers l'application sur Hugging Face](https://huggingface.co/spaces/jdalfonso/sise-opsie)
+
+Pour déployer l'application localement avec Docker, suivez les étapes suivantes :
+
+```bash
+docker build -t security-challenge-app .
+docker run -p 7860:7860 security-challenge-app
+```
+Vous pouvez également exécuter l'application localement en utilisant un environnement Python 3.11 :
+```
+streamlit run app.py
+```
+
+### Exécution locale
+1. Clonez le dépôt :
+
+```
+git clone https://github.com/lansanacisse/security_m2sise.git
+cd sise-opsie
+```
+2. Installez les dépendances nécessaires et exécutez l'application.
+
+
+## Deployment
+L'application est disponible sur Hugging faces sur le lien 
+(https://huggingface.co/spaces/jdalfonso/sise-opsie) 
+
+```bash
+
+docker build -t security-challenge-app .
+```
+
+```bash
+
+docker run -p 7860:7860 security-challenge-app
+
+```
 ---
 
-## Exécution locale  
-1. Clonez le dépôt :  
-   ```bash
-   git clone https://github.com/lansanacisse/security_m2sise.git
-   cd sise-opsie
+## Exécution locale
+
+Pour exécuter l'application localement, suivez les étapes ci-dessous :
+
+### 1. Cloner le dépôt
+Commencez par cloner le dépôt GitHub sur votre machine locale :
+```bash
+git clone https://github.com/lansanacisse/security_m2sise.git
+cd security_m2sise
+```
+
+### 2. Configurer l'environnement Python
+Assurez-vous d'avoir Python 3.11 installé, puis créez un environnement virtuel et activez-le :
+
+```bash
+
+python3.11 -m venv venv
+source venv/bin/activate  # Sur Windows : venv\Scripts\activate
+
+```
+
+### 3. Installer les dépendances
+Installez les bibliothèques nécessaires à partir du fichier requirements.txt :
+
+```bash
+pip install -r requirements.txt
+```
+### 4. Lancer l'application
+Démarrez l'application Streamlit avec la commande suivante :
+
+```bash
+streamlit run app.py
+```
+
+### 5. Accéder à l'application
+Une fois l'application lancée, ouvrez votre navigateur et accédez à l'adresse suivante :
+<br> http://localhost:8501
+
+
+## Collaborateurs
+
+Ce projet a été développé en collaboration par les contributeurs suivants :
+
+- **Lansana Cisse** : [Profil GitHub](https://github.com/lansanacisse)  
+- **Quentin Lim** : [Profil GitHub](https://github.com/QL2111)  
+- **Juan Alfonso** : [Profil GitHub](https://github.com/jdalfons)  
+- **Mariem Amirouch** : [Profil LinkedIn](https://www.linkedin.com/in/mariem-amirouch-b79a64256/)  
+- **Riyad ISMAILI** : [Profil GitHub](https://github.com/riyadismaili)  
