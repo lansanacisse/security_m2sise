@@ -3,6 +3,7 @@ import polars as pl
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
+from db import LogDatabase
 
 # Configuration de la page
 st.set_page_config(page_title="Analyse des logs de firewall", layout="wide")
@@ -10,28 +11,9 @@ st.set_page_config(page_title="Analyse des logs de firewall", layout="wide")
 def load_data():
     """Fonction pour charger et préparer les données."""
     try:
-        # Charger les données à partir du fichier
-        df = pl.read_csv(
-            "data/sample.txt",
-            separator=";",
-            has_header=False,
-            new_columns=[
-                "Date",
-                "IPsrc",
-                "IPdst",
-                "Protocole",
-                "Port_src",
-                "Port_dst",
-                "idRegle",
-                "action",
-                "interface_entrée",
-                "interface_sortie",
-            ],
-        )
+        db = LogDatabase()
         
-        # Convertir la colonne "Date" en datetime
-        if "Date" in df.columns:
-            df = df.with_columns(pl.col("Date").str.to_datetime("%Y-%m-%d %H:%M:%S"))
+        df = db.get_logs_sample()
         
         return df
     except Exception as e:

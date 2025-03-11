@@ -23,8 +23,7 @@ def machine_learning_page():
         "Id regles firewall", 
         "Action", 
         "Interface d’entrée", 
-        "Interface de sortie",
-        "Firewall"]
+        "Interface de sortie"
     
     df = pd.DataFrame(logs, columns=columns)
     st.write(df.head(10))

@@ -5,7 +5,6 @@ import polars as pl
 
 db = LogDatabase()
 
-
 def upload_page():
 
     st.header("Upload Logs Data")
@@ -17,8 +16,7 @@ def upload_page():
     if file_type == "csv":
         st.write("type file csv")
         separator = middle.selectbox("Separator", [";", ","], index=0)
-    # right.text_input("Write something")
-
+    
     uploaded_file = st.file_uploader(f"Choose a {file_type} file.", type=file_type)
 
     if uploaded_file is not None:
@@ -27,7 +25,7 @@ def upload_page():
             "Date",
             "IPsrc",
             "IPdst",
-            "Protocole",
+            "Protocol",
             "Port_src",
             "Port_dst",
             "idRegle",
@@ -40,7 +38,7 @@ def upload_page():
             "Date",
             "IP Source",
             "IP Dest",
-            "Protocole",
+            "Protocol",
             "Port Source",
             "Port Destination",
             "Id regles firewall",

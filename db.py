@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from dotenv import load_dotenv
 import os
+from sqlalchemy import create_engine
 
 # Load environment variables from .env file
 load_dotenv()
@@ -16,38 +17,18 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # Pydantic models for data validation
-class User(BaseModel):
-    id: Optional[int] = None
-    username: str
-    password: str
-    is_admin: bool = False
-    created_at: Optional[datetime] = None
-    password_change_required: bool = False
-
-class UserResponse(BaseModel):
-    id: int
-    username: str
-    is_admin: bool
-    created_at: datetime
-    password_change_required: bool
-
-class UserCreate(BaseModel):
-    username: str
-    password: str
-    is_admin: bool = False
-    password_change_required: bool = True
-
 class Logs(BaseModel):
-    id: Optional[int] = None
-    created_at: Optional[datetime] = None
-    ip_source: str
-    ip_destination: str
-    protocol: str
-    port_destiny: int
+    Date: Optional[datetime] = None
+    IPsrc: str
+    IPdst: str
+    Protocol: str
+    Port_src: int
+    Port_dst: int
+    idRegle: int
     action: str
-    id_firewall: int
-    interface_in: str
-    interface_out: str
+    interface_entrée: str
+    interface_sortie: Optional[str] = None
+    firewall: int
 
 # Base Database class with common functionality for PostgreSQL
 class Database:
@@ -67,7 +48,7 @@ class Database:
     def _hash_password(password: str) -> str:
         return hashlib.sha256(password.encode()).hexdigest()
 
-# Subclass handling log-related functionalities with PostgreSQL
+
 class LogDatabase(Database):
     def __init__(self, db_name="security", user="postgres", password="postgres", host="localhost", port="5432"):
         super().__init__(db_name, user, password, host, port)
@@ -78,18 +59,17 @@ class LogDatabase(Database):
         cursor = conn.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS logs (
-                id SERIAL PRIMARY KEY,
-                date_log TIMESTAMP NOT NULL,
-                ip_source TEXT NOT NULL,
-                ip_destination TEXT NOT NULL,
-                protocol TEXT NOT NULL,
-                port_source INTEGER NOT NULL,
-                port_destiny INTEGER NOT NULL,
-                id_firewall INTEGER NOT NULL,
-                action TEXT NOT NULL,
-                interface_in TEXT NOT NULL,
-                interface_out TEXT,
-                firewall INTEGER NOT NULL
+            "Date" TIMESTAMP NOT NULL,
+            "IPsrc" TEXT NOT NULL,
+            "IPdst" TEXT NOT NULL,
+            "Protocol" TEXT NOT NULL,
+            "Port_src" INTEGER NOT NULL,
+            "Port_dst" INTEGER NOT NULL,
+            "idRegle" INTEGER NOT NULL,
+            "action" TEXT NOT NULL,
+            "interface_entrée" TEXT NOT NULL,
+            "interface_sortie" TEXT,
+            "firewall" INTEGER NOT NULL
             );
         ''')
         conn.commit()
@@ -104,24 +84,24 @@ class LogDatabase(Database):
         cursor = conn.cursor()
         query = "SELECT * FROM logs LIMIT %s"
         cursor.execute(query, (limit,))
-        # Fetch all rows and extract column names from cursor.description
         rows = cursor.fetchall()
         columns=[
-                "ID",
-                "Date",
-                "IPsrc",
-                "IPdst",
-                "Protocol",
-                "Port_src",
-                "Port_dst",
-                "idRule",
-                "action",
-                "interface_entrée",
-                "interface_sortie",
-                "firewall",
-            ]
-        # Create Polars DataFrame from the rows
+            # "ID",
+            "Date",
+            "IPsrc",
+            "IPdst",
+            "Protocol",
+            "Port_src",
+            "Port_dst",
+            "idRegle",
+            "action",
+            "interface_entrée",
+            "interface_sortie",
+            "firewall",
+        ]
         df = pl.DataFrame(rows, schema=columns)
+        # Convert the "Date" column to datetime format
+        df = df.with_columns([pl.col("Date").str.strptime(pl.Datetime, "%Y-%m-%d %H:%M:%S")])
         cursor.close()
         conn.close()
         return df
@@ -136,75 +116,97 @@ class LogDatabase(Database):
         return count
     
     def upload_csv_to_logs(self, df: pl.DataFrame):
+        
         try:
-            # Validate columns against the Logs model
-            required_columns = [
-                "Date", 
-                "IP Source", 
-                "IP Dest", 
-                "Protocole", 
-                "Port Source",
-                "Port Destination", 
-                "Id regles firewall", 
-                "Action", 
-                "Interface d’entrée", 
-                "Interface de sortie",
-                "Firewall"
-            ]
-            
-            # Check if all required columns exist
-            missing_columns = [col for col in required_columns if col not in df.columns]
-            if missing_columns:
-                return False, f"Missing columns: {', '.join(missing_columns)}"
-            
-            # Convert DataFrame to a list of dictionaries using Polars
-            logs_data = df.select(required_columns).to_dicts()
-            
+            # Drop rows with null values except for interface_sortie
+            columns_to_check = [col for col in df.columns if col != "interface_sortie"]
+            df = df.drop_nulls(subset=columns_to_check)
+            # Convert DataFrame to a list of dictionaries using the selected schema fields
+            records = df.select([
+                "Date",
+                "IPsrc",
+                "IPdst",
+                "Protocol",
+                "Port_src",
+                "Port_dst",
+                "idRegle",
+                "action",
+                "interface_entrée",
+                "interface_sortie",
+                "firewall",
+            ]).to_dicts()
+
+            # Validate each record using the Pydantic Logs model
+            logs_data = []
+            for record in records:
+                try:
+                    log_obj = Logs(**record)
+                    logs_data.append(log_obj)
+                except Exception as e:
+                    return False, f"Data validation error: {e}"
+
             conn = self._get_connection()
             cursor = conn.cursor()
-            
-            # First, delete all existing records
+            # Delete all existing records before inserting new ones
             cursor.execute("DELETE FROM logs")
-            
-            # Insert new records
-            for log in logs_data:
-                cursor.execute(
-                    """INSERT INTO logs 
-                       (
-                        date_log, ip_source, ip_destination, protocol, port_source, 
-                        port_destiny, id_firewall, action, interface_in, 
-                        interface_out, firewall
-                       ) 
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    (
-                        log['Date'],
-                        log['IP Source'], 
-                        log['IP Dest'], 
-                        log['Protocole'], 
-                        log['Port Source'],
-                        log['Port Destination'],
-                        log['Id regles firewall'], 
-                        log['Action'],
-                        log['Interface d’entrée'],
-                        log['Interface de sortie'],
-                        log['Firewall']
-                    )
-                )
-            
+            # for log in logs_data:
+            #     cursor.execute(
+            #         """INSERT INTO logs 
+            #            ("Date", "IPsrc", "IPdst", "Protocol", "Port_src", 
+            #             "Port_dst", "idRegle", "action", "interface_entrée", 
+            #             "interface_sortie", "firewall")
+            #            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            #         """,
+            #         (
+            #             log.Date,
+            #             log.IPsrc,
+            #             log.IPdst,
+            #             log.Protocol,
+            #             log.Port_src,
+            #             log.Port_dst,
+            #             log.idRegle,
+            #             log.action,
+            #             log.interface_entrée,
+            #             log.interface_sortie if log.interface_sortie is not None else '',
+            #             log.firewall
+            #         )
+            #     )
             conn.commit()
             cursor.close()
             conn.close()
-            return True, f"Successfully uploaded {len(logs_data)} records"
             
+            load_dotenv()
+
+            # Create database connection URL
+            DB_USER = os.getenv("DB_NAME", "postgres")
+            DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
+            DB_HOST = os.getenv("DB_HOST", "localhost")
+            DB_PORT = os.getenv("DB_PORT", "5432")
+            DB_NAME = os.getenv("DB_NAME", "security")
+            
+            engine = create_engine(f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+
+            # Insertar datos en la tabla (ajustar el nombre de la tabla)
+            df.to_sql("logs", engine, if_exists="replace", index=False)
+            
+            return True, f"Successfully uploaded {len(logs_data)} records"
         except Exception as e:
-            return False, f"Error uploading file: {str(e)}"
+            return False, f"Error uploading file: {e}"
     
     def get_logs(self) -> List[Logs]:
         conn = self._get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         cursor.execute("SELECT * FROM logs")
-        logs = cursor.fetchall()
+        rows = cursor.fetchall()
         cursor.close()
         conn.close()
+        # Validate each row using the Logs model and return a list of Logs objects
+        logs = []
+        for row in rows:
+            row_dict = dict(row)
+            try:
+                log = Logs(**row_dict)
+                logs.append(log)
+            except Exception as e:
+                logging.error(f"Data validation error: {e}")
         return logs
