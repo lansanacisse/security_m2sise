@@ -5,6 +5,7 @@ from views.analysis import analyze_logs  #
 from views.data import explore_data  
 from views.protocol import analyze_flows 
 from views.upload import upload_page 
+from views.machine_learning import machine_learning_page
 
 from db import LogDatabase
 
@@ -57,13 +58,7 @@ def user_page():
         analyze_flows()
 
     elif selected_tab == "Machine Learning":
-        st.write("Machine Learning content coming soon!")
-        st.markdown("""
-            **Planned Features:**
-            - Model training
-            - Prediction analysis
-            - Model evaluation
-        """)
+        machine_learning_page()
     
    # Quick links section after filters and content
     st.markdown("---")
