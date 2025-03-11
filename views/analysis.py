@@ -21,17 +21,6 @@ CUSTOM_COLORS = [
     "#66C2A5",  # Turquoise
 ]
 
-WELL_KNOWN_PORTS = {
-    21: "FTP",
-    22: "SSH",
-    23: "TELNET",
-    25: "SMTP",
-    53: "DNS",
-    80: "HTTP",
-    143: "IMAP",
-    443: "HTTPS",
-}
-
 
 @st.cache_data(ttl=3600)  # Cache pendant 1 heure
 def load_parquet_data():
