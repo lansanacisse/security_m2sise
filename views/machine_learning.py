@@ -65,7 +65,7 @@ def load_and_preprocess_data():
     
     # One-hot encode categorical features
     print("Encoding categorical features...")
-    df = pd.get_dummies(df, columns=['Protocole', 'action'], drop_first=True)
+    df = pd.get_dummies(df, columns=['Protocol', 'action'], drop_first=True)
     
     # Handle missing values
     df = df.fillna(0)
@@ -113,7 +113,7 @@ def visualize_results(pca_df, original_df=None):
         
         if 'Protocol' in original_df.columns:
             st.write("\nProtocol distribution in anomalies:")
-            st.write(anomaly_samples['Protocole'].value_counts())
+            st.write(anomaly_samples['Protocol'].value_counts())
 
 def machine_learning_page():
     st.header("Machine Learning Logs Data")
