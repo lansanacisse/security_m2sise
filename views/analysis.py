@@ -6,6 +6,7 @@ import streamlit as st
 import polars as pl
 import plotly.express as px
 import plotly.graph_objects as go
+import pandas as pd
 import ipaddress
 
 CUSTOM_COLORS = [
@@ -108,6 +109,12 @@ def calculate_top_ports(_df, max_port=1024, limit=10):
 
 
 @st.cache_data(ttl=3600)
+def get_ip_details(_df, selected_ip):
+    """Récupère et met en cache les détails pour une IP spécifique"""
+    return _df.filter(pl.col("IPsrc") == selected_ip)
+
+
+@st.cache_data(ttl=3600)
 def sample_data(_df, n=10000):
     """Échantillonne les données pour les visualisations"""
     # Mettre un underscore pour dire à streamlit de ne pas hasher le dataframe
@@ -141,33 +148,36 @@ def analyze_logs():
         # Sample pour le développement
         df = sample_data(df, n=10000)
         # Calcul des statistiques avec cache
-        ip_stats = calculate_ip_stats(df)
 
-        st.header("Analyse des connexions")
+        selected_ip = st.selectbox("Sélectionnez une IP", df["IPsrc"].unique())
 
-        # Analyse des connexions par IP source
-        st.subheader("Analyse des connexions par IP source")
-        selected_ip = st.selectbox(
-            "Sélectionner une IP source",
-            options=ip_stats["IPsrc"].to_list(),
-        )
-        ip_details = df.filter(pl.col("IPsrc") == selected_ip)
+        ip_details = get_ip_details(df, selected_ip)
+
         col1, col2 = st.columns(2)
+
         with col1:
-            dest_counts = (
-                ip_details.group_by("IPdst")
-                .agg(pl.count().alias("count"))
-                .sort("count", descending=True)
+            # Calcul du nombre de destinations uniques
+            n_destinations = ip_details["IPdst"].n_unique()
+
+            # Création d'une métrique avec du contexte
+            st.metric(
+                "Nombre de destinations uniques contactées",
+                value=n_destinations,
+                help="Nombre total d'adresses IP uniques contactées par cette source",
             )
-            fig_dest = px.bar(
-                dest_counts.to_pandas(),
-                x="IPdst",
-                y="count",
-                title=f"Destinations contactées par {selected_ip}",
-                text="count",
-            )
-            fig_dest.update_layout(xaxis_tickangle=-45)
-            st.plotly_chart(fig_dest)
+
+            # Ajout d'un détail dans un expander si nécessaire
+            with st.expander("Voir les destinations"):
+                dest_counts = (
+                    ip_details.group_by("IPdst")
+                    .agg(pl.count().alias("count"))
+                    .sort("count", descending=True)
+                )
+                st.dataframe(
+                    dest_counts.to_pandas().style.background_gradient(
+                        subset=["count"], cmap="YlOrRd"
+                    )
+                )
         with col2:
             action_counts = (
                 ip_details.group_by("action")
@@ -183,6 +193,8 @@ def analyze_logs():
                 color_discrete_map={"PERMIT": "green", "DENY": "red"},
             )
             st.plotly_chart(fig_actions)
+
+        ################################# Détails des connexions
         with st.expander("Détails des connexions"):
             connections_detail = (
                 ip_details.select(["IPdst", "Port_dst", "Protocole", "action"])
@@ -209,6 +221,148 @@ def analyze_logs():
                 "Connexions refusées",
                 ip_details.filter(pl.col("action") == "DENY").height,
             )
+
+        ################################# Distribution des ports et protocoles pour adresse spécifique
+        st.subheader("Distribution des ports et protocoles")
+        pie1, pie2 = st.columns(2)
+
+        with pie1:
+            # Top 10 Port destinations pie chart
+            port_dist = (
+                ip_details.group_by("Port_dst")
+                .agg(pl.count().alias("count"))
+                .sort("count", descending=True)
+                .limit(10)  # Limit to top 10 for readability
+            )
+
+            fig_ports = px.pie(
+                port_dist.to_pandas(),
+                values="count",
+                names="Port_dst",
+                title=f"Top 10 Ports de destination pour {selected_ip}",
+                color_discrete_sequence=CUSTOM_COLORS,
+            )
+            fig_ports.update_traces(textposition="inside", textinfo="label+percent")
+            st.plotly_chart(fig_ports, use_container_width=True)
+
+        with pie2:
+            # Protocol distribution pie chart
+            proto_dist = (
+                ip_details.group_by("Protocole")
+                .agg(pl.count().alias("count"))
+                .sort("count", descending=True)
+            )
+
+            fig_proto = px.pie(
+                proto_dist.to_pandas(),
+                values="count",
+                names="Protocole",
+                title=f"Distribution des protocoles pour {selected_ip}",
+                color_discrete_sequence=CUSTOM_COLORS,
+            )
+            fig_proto.update_traces(textposition="inside", textinfo="label+percent")
+            st.plotly_chart(fig_proto, use_container_width=True)
+
+        ################################# Time Series Analysis
+        st.subheader("Analyse temporelle des connexions")
+
+        # Convert to pandas for time series analysis
+        ip_details_pd = ip_details.to_pandas()
+        ip_details_pd["Date"] = pd.to_datetime(ip_details_pd["Date"])
+
+        # Create columns for time analysis
+        time_col1, time_col2 = st.columns(2)
+
+        with time_col1:
+            # Time range selector
+            date_range = st.date_input(
+                "Sélectionner la période d'analyse",
+                value=(
+                    ip_details_pd["Date"].min().date(),
+                    ip_details_pd["Date"].max().date(),
+                ),
+                min_value=ip_details_pd["Date"].min().date(),
+                max_value=ip_details_pd["Date"].max().date(),
+            )
+
+            if len(date_range) == 2:
+                start_date, end_date = date_range
+                mask = (ip_details_pd["Date"].dt.date >= start_date) & (
+                    ip_details_pd["Date"].dt.date <= end_date
+                )
+                filtered_data = ip_details_pd[mask]
+            else:
+                filtered_data = ip_details_pd
+
+        # Daily activity plot
+        daily_stats = (
+            filtered_data.groupby([filtered_data["Date"].dt.date, "action"])
+            .size()
+            .unstack(fill_value=0)
+        )
+
+        fig_time = go.Figure()
+
+        if "PERMIT" in daily_stats.columns:
+            fig_time.add_trace(
+                go.Scatter(
+                    x=daily_stats.index,
+                    y=daily_stats["PERMIT"],
+                    name="PERMIT",
+                    line=dict(color="green", width=2),
+                    fill="tonexty",
+                )
+            )
+
+        if "DENY" in daily_stats.columns:
+            fig_time.add_trace(
+                go.Scatter(
+                    x=daily_stats.index,
+                    y=daily_stats["DENY"],
+                    name="DENY",
+                    line=dict(color="red", width=2),
+                    fill="tonexty",
+                )
+            )
+
+        fig_time.update_layout(
+            title=f"Activité journalière pour {selected_ip}",
+            xaxis_title="Date",
+            yaxis_title="Nombre de connexions",
+            hovermode="x unified",
+            showlegend=True,
+            height=400,
+            xaxis=dict(rangeslider=dict(visible=True), type="date"),
+        )
+
+        st.plotly_chart(fig_time, use_container_width=True)
+
+        # Activity statistics
+        with st.expander("Statistiques d'activité"):
+            stats_col1, stats_col2, stats_col3 = st.columns(3)
+
+            with stats_col1:
+                daily_total = daily_stats.sum(axis=1)
+                st.metric(
+                    "Moyenne journalière",
+                    f"{daily_total.mean():.1f}",
+                    help="Nombre moyen de connexions par jour",
+                )
+
+            with stats_col2:
+                st.metric(
+                    "Jour le plus actif",
+                    daily_total.idxmax().strftime("%Y-%m-%d"),
+                    f"{daily_total.max():.0f} connexions",
+                )
+
+            with stats_col3:
+                active_days = (daily_total > 0).sum()
+                st.metric(
+                    "Jours d'activité",
+                    f"{active_days}",
+                    help="Nombre de jours avec au moins une connexion",
+                )
 
         ################################# Top 5 des IP Sources les plus émettrices
         st.subheader("Top 5 des IP Sources les plus émettrices")
