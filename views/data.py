@@ -57,6 +57,14 @@ def render_data_explorer(df):
             max_value=max_date
         )
     
+    # Filtre pour le nombre de lignes à afficher
+    max_rows = st.sidebar.slider(
+        "Nombre de lignes à afficher",
+        min_value=1,
+        max_value=df.height,
+        value=min(100, df.height)  # Valeur par défaut : 100 ou moins si le DataFrame est plus petit
+    )
+    
     # Appliquer les filtres
     filtered_df = df.clone()
     
@@ -85,12 +93,15 @@ def render_data_explorer(df):
             (pl.col("Date") <= end_datetime)
         )
     
+    # Limiter le nombre de lignes affichées selon le filtre
+    limited_df = filtered_df.head(max_rows)
+
     # Afficher les données filtrées avec un titre clair
     st.subheader("Données filtrées")
-    st.dataframe(filtered_df.to_pandas(), use_container_width=True)
+    st.dataframe(limited_df.to_pandas(), use_container_width=True)
     
-    # Compte des lignes filtrées
-    st.info(f"Nombre d'enregistrements affichés: {filtered_df.height}")
+    # Compte des lignes filtrées et affichées
+    st.info(f"Nombre d'enregistrements affichés: {limited_df.height}")
     
     # Section des statistiques
     st.subheader("Statistiques")
