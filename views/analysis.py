@@ -91,7 +91,7 @@ def calculate_top_ports(_df, max_port=1024, limit=10):
             & (pl.col("action") == "PERMIT")
         )
         .group_by("Port_dst")
-        .agg([pl.count().alias("count"), pl.first("Protocol").alias("protocol")])
+        .agg([pl.count().alias("count"), pl.first("Protocole").alias("protocole")])
         .sort("count", descending=True)
         .limit(limit)
     )
@@ -235,7 +235,7 @@ def render_ip_analysis(df_sample, ip_stats, selected_ip, date_range):
     with pie2:
         # Protocol distribution pie chart
         proto_dist = (
-            ip_details.group_by("Protocol")
+            ip_details.group_by("Protocole")
             .agg(pl.count().alias("count"))
             .sort("count", descending=True)
         )
@@ -244,7 +244,7 @@ def render_ip_analysis(df_sample, ip_stats, selected_ip, date_range):
             fig_proto = px.pie(
                 proto_dist.to_pandas(),
                 values="count",
-                names="Protocol",
+                names="Protocole",
                 title=f"Distribution des protocoles pour {selected_ip}",
                 color_discrete_sequence=CUSTOM_COLORS,
             )
@@ -405,7 +405,7 @@ def render_global_analysis(df_sample):
             color="Port_dst",
             color_discrete_sequence=CUSTOM_COLORS,
             category_orders={"Port_dst": port_order},  # Ordre personnalisé
-            hover_data=["protocol"],  # Afficher le protocole au survol
+            hover_data=["protocole"],  # Afficher le protocole au survol
         )
 
         # Personnalisation du graphique
