@@ -20,7 +20,7 @@ def load_data():
     """
     Charge les données depuis un fichier CSV (ou TXT) et effectue les conversions nécessaires.
     Le fichier doit contenir les colonnes suivantes (sans header) : 
-    Date;IPsrc;IPdst;Protocole;Port_src;Port_dst;idRegle;action;interface_entrée;interface_sortie
+    Date;IPsrc;IPdst;Protocol;Port_src;Port_dst;idRegle;action;interface_entrée;interface_sortie
     """
     try:
         db = LogDatabase()
@@ -47,9 +47,9 @@ def apply_filters(df):
     """Applique les filtres via la sidebar."""
     st.sidebar.header("Filtres")
     
-    # Filtre par protocole (on se focalise sur TCP et UDP)
-    protocoles = ["Tous", "TCP", "UDP"]
-    selected_protocol = st.sidebar.selectbox("Protocole", protocoles)
+    # Filtre par Protocol (on se focalise sur TCP et UDP)
+    Protocols = ["Tous", "TCP", "UDP"]
+    selected_protocol = st.sidebar.selectbox("Protocol", Protocols)
     
     # Filtre par action (autorisé ou rejeté)
     actions = ["Tous", "PERMIT", "DENY"]
@@ -74,9 +74,9 @@ def apply_filters(df):
     
     filtered_df = df.clone()
     
-    # Filtre sur le protocole
+    # Filtre sur le Protocol
     if selected_protocol != "Tous":
-        filtered_df = filtered_df.filter(pl.col("Protocole") == selected_protocol)
+        filtered_df = filtered_df.filter(pl.col("Protocol") == selected_protocol)
     
     # Filtre sur l'action (autorisé vs rejeté)
     if selected_action != "Tous":
@@ -165,7 +165,7 @@ def plot_analysis(filtered_df):
         sunburst_data,
         path=["Protocol", "action", "IPsrc"],
         values="Nombre",
-        title="Répartition des flux par protocole, action et source"
+        title="Répartition des flux par Protocol, action et source"
     )
     st.plotly_chart(fig_sunburst, use_container_width=True)
     
@@ -178,7 +178,7 @@ def plot_analysis(filtered_df):
         color="action",
         box=True,
         points="all",
-        title="Distribution des ports sources par protocole et action"
+        title="Distribution des ports sources par Protocol et action"
     )
     st.plotly_chart(fig_violin, use_container_width=True)
     

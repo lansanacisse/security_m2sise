@@ -25,7 +25,7 @@ def upload_page():
             "Date",
             "IPsrc",
             "IPdst",
-            "Protocol",
+            "Protocole",
             "Port_src",
             "Port_dst",
             "idRegle",
@@ -36,31 +36,38 @@ def upload_page():
 
         columns = [
             "Date",
-            "IP Source",
-            "IP Dest",
-            "Protocol",
-            "Port Source",
-            "Port Destination",
-            "Id regles firewall",
-            "Action",
-            "Interface d’entrée",
-            "Interface de sortie",
-            "Firewall",
+            "IPsrc",
+            "IPdst",
+            "Protocole",
+            "Port_src",
+            "Port_dst",
+            "idRegle",
+            "action",
+            "interface_entrée",
+            "interface_sortie",
+            # "Firewall",
         ]
         if file_type == "csv":
-            df = pd.read_csv(uploaded_file, sep=separator, names=columns, header=None)
+            df = pl.read_csv(uploaded_file, separator=separator, has_header=False)
+            df.columns = columns
         elif file_type == "parquet":
-            df = pd.read_parquet(uploaded_file)
+            df = pl.read_parquet(uploaded_file)
             # Renommage des colonnes pour l'affichage
             column_mapping = dict(zip(parquet_columns, columns))
-            df = df.rename(columns=column_mapping)
+            df = df.rename(column_mapping)
         st.subheader("Preview of uploaded file:")
-        st.dataframe(df.head(10))
-
+        st.dataframe(df.head(10).to_pandas())
+        
+        # Select only the columns specified in 'columns'
+        df = df.select(columns)
+        
         # Show basic file stats
         st.subheader("File Statistics:")
-        st.write(f"Total rows: {len(df)}")
-        st.write(f"Columns: {', '.join(df.columns.tolist())}")
+        st.write(f"Total rows: {df.shape[0]}")
+        st.write(f"Columns: {', '.join(df.columns)}")
+        
+        # Convert to polars DataFrame
+        # df_pl = pl.from_pandas(df)
 
         # Upload button
         if st.button("Replace Database with This File"):

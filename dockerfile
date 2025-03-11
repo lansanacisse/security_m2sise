@@ -16,8 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code into the container
 COPY . .
 
-# Expose the port that Streamlit will run on
-EXPOSE 8502
+# Expose the port that Hugging Face will use
+EXPOSE 7860
 
-# Command to run the Streamlit app on port 8502
-CMD ["streamlit", "run", "app.py", "--server.port=8502"]
+# Command to run the Hugging Face app on port 7860
+CMD ["python", "app.py", "--port", "7860"]
