@@ -92,19 +92,15 @@ def calculate_network_info(_df):
 def calculate_top_ports(_df, max_port=1024, limit=10):
     """Calcule et met en cache les statistiques des ports les plus utilisés"""
     return (
-        _df.filter((pl.col("Port_dst") < max_port) & (pl.col("action") == "PERMIT"))
-        .group_by("Port_dst")
-        .agg(
-            [
-                pl.count().alias("count"),
-                pl.first("Protocole").alias(
-                    "protocol"
-                ),  # Ajout du protocole pour plus d'info
-            ]
+        _df.filter(
+            (pl.col("Port_dst").cast(pl.Int32).lt(pl.lit(max_port)))
+            & (pl.col("action") == "PERMIT")
         )
+        .group_by("Port_dst")
+        .agg([pl.count().alias("count"), pl.first("Protocole").alias("protocol")])
         .sort("count", descending=True)
         .limit(limit)
-        .with_columns(pl.col("Port_dst").cast(pl.Utf8))  # Convertir Port_dst en string
+        .with_columns([pl.col("Port_dst").cast(pl.Utf8).alias("Port_dst")])
     )
 
 
@@ -149,7 +145,31 @@ def analyze_logs():
         df = sample_data(df, n=10000)
         # Calcul des statistiques avec cache
 
-        selected_ip = st.selectbox("Sélectionnez une IP", df["IPsrc"].unique())
+        ip_stats = (
+            df.group_by("IPsrc")
+            .agg(
+                [
+                    pl.n_unique("IPdst").alias("nb_destinations"),
+                    pl.col("action")
+                    .filter(pl.col("action") == "PERMIT")
+                    .count()
+                    .alias("permit_count"),
+                    pl.col("action")
+                    .filter(pl.col("action") == "DENY")
+                    .count()
+                    .alias("deny_count"),
+                    pl.count().alias("total_count"),
+                ]
+            )
+            .sort("total_count", descending=True)
+        )
+
+        selected_ip = st.selectbox(
+            "Sélectionner une IP source",
+            options=ip_stats["IPsrc"].to_list(),
+            format_func=lambda x: f"{x} ({ip_stats.filter(pl.col('IPsrc') == x)['total_count'].item()} connexions)",
+            key="ip_selector",  # Ajout d'une clé unique
+        )
 
         ip_details = get_ip_details(df, selected_ip)
 
@@ -326,7 +346,7 @@ def analyze_logs():
             )
 
         fig_time.update_layout(
-            title=f"Activité journalière pour {selected_ip}",
+            title=f"Activité pour {selected_ip}",
             xaxis_title="Date",
             yaxis_title="Nombre de connexions",
             hovermode="x unified",
@@ -385,6 +405,7 @@ def analyze_logs():
         ################################# Top 10 des ports inférieurs à 1024 avec accès autorisé
         st.subheader("Top 10 des ports inférieurs à 1024 avec accès autorisé")
         top_ports = calculate_top_ports(df)
+        # st.write(top_ports)
 
         port_order = top_ports["Port_dst"].to_list()
 
