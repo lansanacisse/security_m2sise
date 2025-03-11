@@ -5,17 +5,15 @@ import plotly.express as px
 from datetime import datetime
 from db import LogDatabase
 
-
 # Définition des plages de ports selon la RFC 6056 et options complémentaires
 RFC_PORT_RANGES = {
-    "Linux 4.x": (32768, 60999),
-    "FreeBSD, macOS": (49152, 65535),
-    "Windows": (49152, 65535),
-    "Autres OS": (1024, 5000),
-    "Ports bien connus": (1, 1023),
-    "Ports enregistrés": (1024, 49151),
-    "Personnalisé": (0, 0)  # Sera remplacé par la sélection utilisateur
+    "Tous": None,  # Ou (0, 65535)
+    "Ports bien connus (Well-known ports)": (1, 1023),
+    "Ports enregistrés (Registered ports)": (1024, 49151),
+    "Ports dynamiques/éphémères (Dynamic/ephemeral ports)": (49152, 65535),
+    "Plage personnalisée": (0, 0)
 }
+
 
 @st.cache_data
 def load_data():
@@ -28,9 +26,11 @@ def load_data():
         db = LogDatabase()
         
         df = db.get_logs_sample()
+        # df = db.get_logs()
+        # df = df.to_panadas()
 
-        st.write("Aperçu des données:")
-        st.write(df.head(5))
+        # st.write("Aperçu des données:")
+        # st.write(df.head(5))
         # Conversion de la date au format datetime
         # df = df.with_columns(pl.col("Date").str.to_datetime("%Y-%m-%d %H:%M:%S"))
         # Conversion des ports en entiers
@@ -49,16 +49,17 @@ def apply_filters(df):
     
     # Filtre par protocole (on se focalise sur TCP et UDP)
     protocoles = ["Tous", "TCP", "UDP"]
-    selected_protocol = st.sidebar.selectbox("Protocol", protocoles)
+    selected_protocol = st.sidebar.selectbox("Protocole", protocoles)
     
     # Filtre par action (autorisé ou rejeté)
     actions = ["Tous", "PERMIT", "DENY"]
     selected_action = st.sidebar.selectbox("Action", actions)
     
     # Filtre par plage de ports selon la RFC 6056
-    selected_range = st.sidebar.selectbox("Plage de ports prédéfinie", list(RFC_PORT_RANGES.keys()))
+    selected_range = st.sidebar.selectbox("Plage de ports prédéfinie", list(RFC_PORT_RANGES.keys()), index=0)
     custom_port_range = RFC_PORT_RANGES[selected_range]
-    if selected_range == "Personnalisé":
+    
+    if selected_range == "Plage personnalisée":
         min_port, max_port = st.sidebar.slider("Définir une plage de ports", 0, 65535, (1024, 49151))
         custom_port_range = (min_port, max_port)
     
@@ -69,24 +70,25 @@ def apply_filters(df):
     min_date = df["Date"].min().date()
     max_date = df["Date"].max().date()
     date_range = st.sidebar.date_input("Plage de dates", [min_date, max_date],
-                                       min_value=min_date, max_value=max_date)
+                                         min_value=min_date, max_value=max_date)
     
     filtered_df = df.clone()
     
     # Filtre sur le protocole
     if selected_protocol != "Tous":
-        filtered_df = filtered_df.filter(pl.col("Protocol") == selected_protocol)
+        filtered_df = filtered_df.filter(pl.col("Protocole") == selected_protocol)
     
     # Filtre sur l'action (autorisé vs rejeté)
     if selected_action != "Tous":
         filtered_df = filtered_df.filter(pl.col("action") == selected_action)
     
     # Filtre sur la plage de ports
-    min_port, max_port = custom_port_range
-    if port_type in ["Source", "Les deux"]:
-        filtered_df = filtered_df.filter((pl.col("Port_src") >= min_port) & (pl.col("Port_src") <= max_port))
-    if port_type in ["Destination", "Les deux"]:
-        filtered_df = filtered_df.filter((pl.col("Port_dst") >= min_port) & (pl.col("Port_dst") <= max_port))
+    if selected_range != "Tous":  # N'applique le filtrage que si "Tous" n'est pas sélectionné
+        min_port, max_port = custom_port_range
+        if port_type in ["Source", "Les deux"]:
+            filtered_df = filtered_df.filter((pl.col("Port_src") >= min_port) & (pl.col("Port_src") <= max_port))
+        if port_type in ["Destination", "Les deux"]:
+            filtered_df = filtered_df.filter((pl.col("Port_dst") >= min_port) & (pl.col("Port_dst") <= max_port))
     
     # Filtre sur la période
     if len(date_range) == 2:
