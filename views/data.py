@@ -13,8 +13,9 @@ def load_data():
     try:
         db = LogDatabase()
         
-        df = db.get_logs_sample()
-        
+        # df = db.get_logs_sample()
+        df = db.get_logs()
+        df = df.to_pandas()        
         return df
     except Exception as e:
         st.error(f"Erreur lors de la lecture du fichier: {e}")
@@ -125,11 +126,11 @@ def render_data_explorer(df):
             fig.update_layout(height=400)
             st.plotly_chart(fig, use_container_width=True)
 
-def explore_data():
+def explore_data(df):
     """Fonction principale pour afficher les données sous forme de tableau et analyses."""
     try:
         # Lire les données à partir du fichier
-        df = load_data()
+        # df = load_data()
         
         if df is not None:
             # Afficher uniquement l'explorateur de données

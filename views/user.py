@@ -1,13 +1,15 @@
 import streamlit as st
 from streamlit_option_menu import option_menu
-from db import Database, LogDatabase
+from db import LogDatabase
 from views.analysis import analyze_logs  #
 from views.data import explore_data  
 from views.protocol import analyze_flows 
 from views.upload import upload_page 
 from views.machine_learning import machine_learning_page
 
-from db import LogDatabase
+db = LogDatabase()
+
+df = db.get_logs_sample()
 
 
 def user_page():
@@ -48,11 +50,11 @@ def user_page():
         upload_page()
     elif selected_tab == "Analysis":
         st.title("Analyse des logs de sécurité")
-        analyze_logs()
+        analyze_logs(df)
         
     elif selected_tab == "Datasets":
         st.title("Exploration des données")
-        explore_data()
+        explore_data(df)
     elif selected_tab == "Protocol":  # Fixed typo in "Protocol"
         st.title("Statistiques des flux réseau par protocole")
         analyze_flows()

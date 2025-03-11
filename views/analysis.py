@@ -25,15 +25,15 @@ def is_internal_ip(ip: str) -> bool:
         return False
 
 
-def analyze_logs():
+def analyze_logs(df):
+    
     # Read the log fileq
     try:
-        db = LogDatabase()
         
-        df = db.get_logs_sample()
 
         st.write("Aperçu des données:")
         st.write(df.head(5))
+        st.write(f"Nombre total de lignes dans le dataframe: {len(df)}")
 
         # TODO PARTIE 3 ----------------------------
         # Visualisation interactive des données
@@ -340,6 +340,3 @@ def analyze_logs():
     except Exception as e:
         st.error(f"Error reading log file: {str(e)}")
 
-
-if __name__ == "__main__":
-    analyze_logs()
