@@ -12,3 +12,4 @@ venv/
 
 # SQLite database file
 security.db
+.env

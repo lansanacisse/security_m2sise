@@ -8,6 +8,124 @@ import plotly.express as px
 import plotly.graph_objects as go
 import ipaddress
 
+CUSTOM_COLORS = [
+    "#E41A1C",  # Rouge
+    "#377EB8",  # Bleu
+    "#4DAF4A",  # Vert
+    "#984EA3",  # Violet
+    "#FF7F00",  # Orange
+    "#FFFF33",  # Jaune
+    "#A65628",  # Marron
+    "#F781BF",  # Rose
+    "#999999",  # Gris
+    "#66C2A5",  # Turquoise
+]
+
+WELL_KNOWN_PORTS = {
+    21: "FTP",
+    22: "SSH",
+    23: "TELNET",
+    25: "SMTP",
+    53: "DNS",
+    80: "HTTP",
+    143: "IMAP",
+    443: "HTTPS",
+}
+
+
+@st.cache_data(ttl=3600)  # Cache pendant 1 heure
+def load_parquet_data():
+    """Charge et met en cache les données du fichier Parquet"""
+    try:
+        # Load data and convert Date column to datetime
+        df = pl.read_parquet("data/logs.parquet")
+        df = df.with_columns(
+            [
+                # Conversion de la date en datetime
+                pl.col("Date")
+                .str.strptime(pl.Datetime, "%Y-%m-%d %H:%M:%S")
+                .alias("Date"),
+                # Conversion du port en string
+                pl.col("Port_dst").cast(pl.Utf8).alias("Port_dst"),
+            ]
+        )
+        return df
+    except Exception as e:
+        st.error(f"Erreur lors de la lecture du fichier: {str(e)}")
+        return None
+
+
+@st.cache_data(ttl=3600)
+def calculate_ip_stats(_df):
+    """Calcule et met en cache les statistiques par IP"""
+    return (
+        _df.group_by("IPsrc")
+        .agg(
+            [
+                pl.n_unique("IPdst").alias("nb_destinations"),
+                pl.col("action")
+                .filter(pl.col("action") == "PERMIT")
+                .count()
+                .alias("permit_count"),
+                pl.col("action")
+                .filter(pl.col("action") == "DENY")
+                .count()
+                .alias("deny_count"),
+                pl.count().alias("total_count"),
+            ]
+        )
+        .sort("nb_destinations", descending=True)
+    )
+
+
+@st.cache_data(ttl=3600)
+def calculate_port_stats(_df, port_range):
+    """Calcule et met en cache les statistiques par port"""
+    filtered_data = _df.filter(
+        (pl.col("Port_dst") >= port_range[0]) & (pl.col("Port_dst") <= port_range[1])
+    )
+    return filtered_data
+
+
+@st.cache_data(ttl=3600)
+def calculate_network_info(_df):
+    """Calcule et met en cache les informations réseau"""
+    return _df.with_columns(
+        [
+            pl.col("IPsrc").map_elements(is_internal_ip).alias("is_src_internal"),
+            pl.col("IPdst").map_elements(is_internal_ip).alias("is_dst_internal"),
+        ]
+    )
+
+
+@st.cache_data(ttl=3600)
+def calculate_top_ports(_df, max_port=1024, limit=10):
+    """Calcule et met en cache les statistiques des ports les plus utilisés"""
+    return (
+        _df.filter((pl.col("Port_dst") < max_port) & (pl.col("action") == "PERMIT"))
+        .group_by("Port_dst")
+        .agg(
+            [
+                pl.count().alias("count"),
+                pl.first("Protocole").alias(
+                    "protocol"
+                ),  # Ajout du protocole pour plus d'info
+            ]
+        )
+        .sort("count", descending=True)
+        .limit(limit)
+        .with_columns(pl.col("Port_dst").cast(pl.Utf8))  # Convertir Port_dst en string
+    )
+
+
+@st.cache_data(ttl=3600)
+def sample_data(_df, n=10000):
+    """Échantillonne les données pour les visualisations"""
+    # Mettre un underscore pour dire à streamlit de ne pas hasher le dataframe
+    if len(_df) > n:
+        return _df.sample(n=n, seed=42)
+    return _df
+
 
 # Définition des plages avec RFC 1918, à vérifier ?
 def is_internal_ip(ip: str) -> bool:
@@ -25,75 +143,33 @@ def is_internal_ip(ip: str) -> bool:
 
 
 def analyze_logs():
-    # Read the log fileq
+    # Read the log file
     try:
-        df = pl.read_csv(
-            "data/log_export.log",
-            separator=";",
-            has_header=False,
-            new_columns=[
-                "Date",
-                "IPsrc",
-                "IPdst",
-                "Protocole",
-                "Port_src",
-                "Port_dst",
-                "idRegle",
-                "action",
-                "interface_entrée",
-                "interface_sortie",
-            ],
-        )
+        df = load_parquet_data()
+        if df is None:
+            return
 
-        # Affichage des données brutes
-        # st.write("Aperçu des données:")
-        # st.write(df.head(5))
+        # Sample pour le développement
+        df = sample_data(df, n=10000)
+        # Calcul des statistiques avec cache
+        ip_stats = calculate_ip_stats(df)
 
-        # TODO PARTIE 3 ---------------------------- plage de port
-        # Visualisation interactive des données
-        # Visualisation interactive des données (IP source avec le nombre d’occurrences de destination contactées, incluant le nombre de flux rejetés et autorisés).
-        st.header("Analyse des connexions par IP source")
+        st.header("Analyse des connexions")
 
-        # Calcul des statistiques par IP source
-        ip_stats = (
-            df.group_by("IPsrc")
-            .agg(
-                [
-                    pl.n_unique("IPdst").alias("nb_destinations"),
-                    pl.col("action")
-                    .filter(pl.col("action") == "PERMIT")
-                    .count()
-                    .alias("permit_count"),
-                    pl.col("action")
-                    .filter(pl.col("action") == "DENY")
-                    .count()
-                    .alias("deny_count"),
-                    pl.count().alias("total_count"),
-                ]
-            )
-            .sort("nb_destinations", descending=True)
-        )
-
-        # Création d'un sélecteur d'IP interactif
+        # Analyse des connexions par IP source
+        st.subheader("Analyse des connexions par IP source")
         selected_ip = st.selectbox(
             "Sélectionner une IP source",
             options=ip_stats["IPsrc"].to_list(),
         )
-
-        # Filtrage des données pour l'IP sélectionnée
         ip_details = df.filter(pl.col("IPsrc") == selected_ip)
-
-        # Création de deux colonnes pour l'affichage
         col1, col2 = st.columns(2)
-
         with col1:
-            # Graphique des destinations contactées
             dest_counts = (
                 ip_details.group_by("IPdst")
                 .agg(pl.count().alias("count"))
                 .sort("count", descending=True)
             )
-
             fig_dest = px.bar(
                 dest_counts.to_pandas(),
                 x="IPdst",
@@ -103,15 +179,12 @@ def analyze_logs():
             )
             fig_dest.update_layout(xaxis_tickangle=-45)
             st.plotly_chart(fig_dest)
-
         with col2:
-            # Distribution des actions pour cette IP
             action_counts = (
                 ip_details.group_by("action")
                 .agg(pl.count().alias("count"))
                 .sort("count", descending=True)
             )
-
             fig_actions = px.pie(
                 action_counts.to_pandas(),
                 values="count",
@@ -121,25 +194,19 @@ def analyze_logs():
                 color_discrete_map={"PERMIT": "green", "DENY": "red"},
             )
             st.plotly_chart(fig_actions)
-
-        # Détails supplémentaires dans un expander
         with st.expander("Détails des connexions"):
-            # Table des connexions détaillées
             connections_detail = (
                 ip_details.select(["IPdst", "Port_dst", "Protocole", "action"])
                 .group_by(["IPdst", "Port_dst", "Protocole", "action"])
                 .agg(pl.count().alias("occurrences"))
                 .sort("occurrences", descending=True)
             )
-
             st.write("Détail des connexions :")
             st.dataframe(
                 connections_detail.to_pandas().style.background_gradient(
                     subset=["occurrences"], cmap="YlOrRd"
                 )
             )
-
-        # Métriques globales
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Nombre total de destinations", ip_details["IPdst"].n_unique())
@@ -154,96 +221,7 @@ def analyze_logs():
                 ip_details.filter(pl.col("action") == "DENY").height,
             )
 
-        st.header("Analyse des connexions par plage de ports")
-
-        # Création du slider pour la plage de ports
-        min_port = int(df["Port_dst"].min())
-        max_port = int(df["Port_dst"].max())
-        port_range = st.slider(
-            "Sélectionner une plage de ports",
-            min_value=min_port,
-            max_value=max_port,
-            value=(min_port, max_port),
-            step=1,
-        )
-
-        # Filtrage des données selon la plage de ports
-        filtered_data = df.filter(
-            (pl.col("Port_dst") >= port_range[0])
-            & (pl.col("Port_dst") <= port_range[1])
-        )
-
-        # Préparation des données pour le scatter plot
-        port_stats = (
-            filtered_data.group_by(["IPsrc", "Port_dst"])
-            .agg(
-                [
-                    pl.n_unique("IPdst").alias("nb_destinations"),
-                    pl.col("action")
-                    .filter(pl.col("action") == "PERMIT")
-                    .count()
-                    .alias("permit_count"),
-                    pl.col("action")
-                    .filter(pl.col("action") == "DENY")
-                    .count()
-                    .alias("deny_count"),
-                ]
-            )
-            .sort("nb_destinations", descending=True)
-        )
-
-        # Création du scatter plot
-        fig_scatter = px.scatter(
-            port_stats.to_pandas(),
-            x="Port_dst",
-            y="nb_destinations",
-            size="permit_count",  # Taille selon le nombre de PERMIT
-            color="deny_count",  # Couleur selon le nombre de DENY
-            hover_data={
-                "IPsrc": True,
-                "Port_dst": True,
-                "permit_count": True,
-                "deny_count": True,
-            },
-            labels={
-                "Port_dst": "Port de destination",
-                "nb_destinations": "Nombre de destinations uniques",
-                "permit_count": "Connexions autorisées",
-                "deny_count": "Connexions refusées",
-                "IPsrc": "IP Source",
-            },
-            title=f"Distribution des connexions par port (Ports {port_range[0]} à {port_range[1]})",
-        )
-
-        # Personnalisation du graphique
-        fig_scatter.update_traces(
-            marker=dict(sizemin=5, sizeref=0.1, sizemode="area"),
-            hovertemplate="<br>".join(
-                [
-                    "IP Source: %{customdata[0]}",
-                    "Port: %{x}",
-                    "Destinations: %{y}",
-                    "Autorisées: %{customdata[2]}",
-                    "Refusées: %{customdata[3]}",
-                ]
-            ),
-        )
-
-        # Mise en page
-        fig_scatter.update_layout(
-            height=600, showlegend=True, coloraxis_colorbar_title="Connexions refusées"
-        )
-
-        # Affichage du graphique
-        st.plotly_chart(fig_scatter, use_container_width=True)
-        st.write("test")
-
-        # ----------------- PARTIE 4 -----------------
-
-        ############################################################################################################
-        # TOP 5 des IP sources
-        ############################################################################################################
-
+        ################################# Top 5 des IP Sources les plus émettrices
         st.subheader("Top 5 des IP Sources les plus émettrices")
         top_ips = (
             df.select(pl.col("IPsrc"))
@@ -252,7 +230,6 @@ def analyze_logs():
             .sort("count", descending=True)
             .limit(5)
         )
-
         fig_top_ips = px.bar(
             top_ips.to_pandas(),
             x="IPsrc",
@@ -260,74 +237,53 @@ def analyze_logs():
             title="Top 5 IP Sources",
             text="count",
         )
-        st.plotly_chart(fig_top_ips)
+        st.plotly_chart(fig_top_ips, use_container_width=True)
 
-        # Distribution des actions par protocole (Sunburst)
-        st.subheader("Distribution des actions par protocole")
-        protocol_actions = (
-            df.select(["Protocole", "action"])
-            .group_by(["Protocole", "action"])
-            .count()
-            .sort("count", descending=True)
-        )
+        ################################# Top 10 des ports inférieurs à 1024 avec accès autorisé
+        st.subheader("Top 10 des ports inférieurs à 1024 avec accès autorisé")
+        top_ports = calculate_top_ports(df)
 
-        fig_sunburst = px.sunburst(
-            protocol_actions.to_pandas(),
-            path=["Protocole", "action"],
-            values="count",  # Changed from "counts" to "count"
-            title="Actions par Protocole",
-        )
-        st.plotly_chart(fig_sunburst)
+        port_order = top_ports["Port_dst"].to_list()
 
-        ############################################################################################################
-        # TOP 10 des ports autorisés < 1024
-        ############################################################################################################
-
-        st.subheader("Top 10 des ports autorisés < 1024")
-
-        # DEBUG : Affichage des données sampled, il n'y a que 443 pour le port dst
-        # st.write(
-        #     df.filter((pl.col("action") == "PERMIT") & (pl.col("Port_dst") < 1024))
-        # )
-
-        allowed_ports = (
-            df.filter((pl.col("action") == "PERMIT") & (pl.col("Port_dst") < 1024))
-            .select(pl.col("Port_dst"))
-            .group_by("Port_dst")
-            .count()
-            .sort("count", descending=True)
-            .limit(10)
-        )
-
-        fig_ports = px.bar(
-            allowed_ports.to_pandas(),
+        fig_top_ports = px.bar(
+            top_ports.to_pandas(),
             x="Port_dst",
-            y="count",  # Changed from "counts" to "count"
-            title="Top 10 Ports Autorisés < 1024",
+            y="count",
+            title="Top 10 Ports",
             text="count",
+            color="Port_dst",
+            color_discrete_sequence=CUSTOM_COLORS,
+            category_orders={"Port_dst": port_order},  # Ordre personnalisé
         )
-        st.plotly_chart(fig_ports)
 
-        ############################################################################################################
-        # Analyse des flux réseau
-        ############################################################################################################
+        # Personnalisation du graphique
+        fig_top_ports.update_xaxes(type="category")
+
+        fig_top_ports.update_traces(
+            textposition="outside",
+            width=0.8,
+        )
+
+        fig_top_ports.update_layout(
+            xaxis_title="Port de destination",
+            yaxis_title="Nombre de connexions",
+            height=500,
+            xaxis=dict(tickangle=-45),  # Rotation des étiquettes
+            margin=dict(t=50, b=100),  # Ajustement des marges
+        )
+        st.plotly_chart(fig_top_ports, use_container_width=True)
+
+        ################################ Classification des IPs (internes/externes)
         st.subheader("Classification des IPs (internes/externes)")
-
-        # Ajout des colonnes pour IP source et destination
         df_with_network_info = df.with_columns(
             [
-                pl.col("IPsrc")
-                .map_elements(is_internal_ip)
-                .alias(
-                    "is_src_internal"
-                ),  # map_elements est l'équivalent de apply dans pandas
+                pl.col("IPsrc").map_elements(is_internal_ip).alias("is_src_internal"),
                 pl.col("IPdst").map_elements(is_internal_ip).alias("is_dst_internal"),
             ]
         )
-
         st.write(df_with_network_info)
 
-        # Affichage détaillé des IPs externes
+        # Détail des IPs externes
         st.subheader("Détail des IPs externes")
         external_ips = (
             df_with_network_info.filter(pl.col("is_src_internal") == False)
@@ -335,14 +291,10 @@ def analyze_logs():
             .agg(pl.count().alias("nombre_tentatives"))
             .sort("nombre_tentatives", descending=True)
         )
-
         st.write(external_ips)
 
-        # Analyse des flux (Sankey)
-
+        # Analyse des flux réseau (interne/externe)
         st.subheader("Analyse des flux réseau (interne/externe)")
-
-        # Préparation des données pour Sankey
         flux_data = (
             df_with_network_info.select(
                 [
@@ -357,14 +309,10 @@ def analyze_logs():
             .count()
             .sort("count", descending=True)
         )
-
-        # Création des nodes uniques
         nodes = list(
             set(flux_data["source"].unique()) | set(flux_data["target"].unique())
         )
         node_indices = {node: idx for idx, node in enumerate(nodes)}
-
-        # Définition des couleurs
         node_colors = [
             (
                 "blue"
@@ -377,8 +325,6 @@ def analyze_logs():
             )
             for node in nodes
         ]
-
-        # Création du diagramme Sankey
         fig_sankey = go.Figure(
             data=[
                 go.Sankey(
@@ -422,16 +368,12 @@ def analyze_logs():
                 )
             ]
         )
-
-        # Mise en page
         fig_sankey.update_layout(
-            title="Flux réseau: IP Interne/Externe → Actions", font_size=10, height=600
+            title="Flux réseau: IP Interne/Externe → Actions",
+            font_size=10,
+            height=600,
         )
-
-        # Affichage
         st.plotly_chart(fig_sankey, use_container_width=True)
-
-        # Statistiques complémentaires
         with st.expander("Détails des flux"):
             st.write("Distribution détaillée des flux:")
             st.write(flux_data)
