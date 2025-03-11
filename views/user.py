@@ -54,7 +54,7 @@ def user_page():
         st.title("Exploration des données")
         explore_data()
     elif selected_tab == "Protocol":  # Fixed typo in "Protocol"
-        st.title("Statistiques des flux réseau par protocole")
+        st.title("Statistiques des flux réseau par Protocol")
         analyze_flows()
 
     elif selected_tab == "Machine Learning":
@@ -75,8 +75,8 @@ def user_page():
         - [Lansana Sise](https://github.com/jdalfons)
         - [Quentin lim](https://github.com/jdalfons)
         - [Juan Alfonso](https://github.com/jdalfons)
-        - [OPSIE1](https://github.com/jdalfons)
-        - [OPSIE2](https://github.com/jdalfons)
+        - [Mariem Amirouch](https://github.com/jdalfons)
+        - [Riyad ISMAILI](https://github.com/jdalfons)
         """)
         
     # st.markdown("### Quick Links")

@@ -32,11 +32,11 @@ def render_data_explorer(df):
         actions = ["Tous"] + df["action"].unique().to_list()
         selected_action = st.sidebar.selectbox("Action", actions)
     
-    # Filtre par protocole
+    # Filtre par Protocol
     selected_protocol = "Tous"
-    if "Protocole" in df.columns:
-        protocols = ["Tous"] + df["Protocole"].unique().to_list()
-        selected_protocol = st.sidebar.selectbox("Protocole", protocols)
+    if "Protocol" in df.columns:
+        protocols = ["Tous"] + df["Protocol"].unique().to_list()
+        selected_protocol = st.sidebar.selectbox("Protocol", protocols)
     
     # Filtre par port de destination
     selected_dst_port = "Tous"
@@ -72,9 +72,9 @@ def render_data_explorer(df):
     if "action" in df.columns and selected_action != "Tous":
         filtered_df = filtered_df.filter(pl.col("action") == selected_action)
     
-    # Filtre par protocole
-    if "Protocole" in df.columns and selected_protocol != "Tous":
-        filtered_df = filtered_df.filter(pl.col("Protocole") == selected_protocol)
+    # Filtre par Protocol
+    if "Protocol" in df.columns and selected_protocol != "Tous":
+        filtered_df = filtered_df.filter(pl.col("Protocol") == selected_protocol)
     
     # Filtre par port de destination
     if "Port_dst" in df.columns and selected_dst_port != "Tous":

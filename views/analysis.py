@@ -24,19 +24,14 @@ CUSTOM_COLORS = [
 def load_parquet_data():
     """Charge et met en cache les données du fichier Parquet"""
     try:
-        # Load data and convert Date column to datetime
-        df = pl.read_parquet("data/logs.parquet")
-        df = df.with_columns(
-            [
-                # Conversion de la date en datetime
-                pl.col("Date")
-                .str.strptime(pl.Datetime, "%Y-%m-%d %H:%M:%S")
-                .alias("Date"),
-                # Conversion du port en string pour certaines opérations
-                pl.col("Port_dst").cast(pl.Utf8).alias("Port_dst"),
-            ]
-        )
+        db = LogDatabase()
+        
+        df = db.get_logs_sample()
+        
         return df
+    except Exception as e:
+        st.error(f"Erreur lors de la lecture du fichier: {e}")
+        return None
     except Exception as e:
         st.error(f"Erreur lors de la lecture du fichier: {str(e)}")
         return None
@@ -96,7 +91,7 @@ def calculate_top_ports(_df, max_port=1024, limit=10):
             & (pl.col("action") == "PERMIT")
         )
         .group_by("Port_dst")
-        .agg([pl.count().alias("count"), pl.first("Protocole").alias("protocol")])
+        .agg([pl.count().alias("count"), pl.first("Protocol").alias("protocol")])
         .sort("count", descending=True)
         .limit(limit)
     )
@@ -240,7 +235,7 @@ def render_ip_analysis(df_sample, ip_stats, selected_ip, date_range):
     with pie2:
         # Protocol distribution pie chart
         proto_dist = (
-            ip_details.group_by("Protocole")
+            ip_details.group_by("Protocol")
             .agg(pl.count().alias("count"))
             .sort("count", descending=True)
         )
@@ -249,7 +244,7 @@ def render_ip_analysis(df_sample, ip_stats, selected_ip, date_range):
             fig_proto = px.pie(
                 proto_dist.to_pandas(),
                 values="count",
-                names="Protocole",
+                names="Protocol",
                 title=f"Distribution des protocoles pour {selected_ip}",
                 color_discrete_sequence=CUSTOM_COLORS,
             )

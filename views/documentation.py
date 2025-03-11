@@ -13,7 +13,7 @@ Cette documentation vous guide à travers les fonctionnalités de l'application.
 1. **Accueil** : Vue d'ensemble du tableau de bord.
 2. **Analyse** : Analyse des logs de sécurité.
 3. **Datasets** : Exploration des jeux de données.
-4. **Protocole** : Analyse des flux réseau.
+4. **Protocol** : Analyse des flux réseau.
 5. **Machine Learning** : Modèles d'apprentissage automatique.
 
 #### Comment utiliser l'application :
