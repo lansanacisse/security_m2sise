@@ -65,18 +65,18 @@ def user_page():
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("### About")
+        st.markdown("### 📄 About")
         st.write("This dashboard is maintained by the Security M2 SISE team.")
         st.write("For more information, please visit the [GitHub repository](https://github.com/lansanacisse/security_m2sise/tree/develop).")
 
     with col2:
-        st.markdown("### Collaborators")
+        st.markdown("###  Collaborators")
         st.write("""
-        - [Lansana Sise](https://github.com/jdalfons)
-        - [Quentin lim](https://github.com/jdalfons)
+        - [Lansana Cisse](https://github.com/lansanacisse)
+        - [Quentin lim](https://github.com/QL2111)
         - [Juan Alfonso](https://github.com/jdalfons)
-        - [Mariem Amirouch](https://github.com/jdalfons)
-        - [Riyad ISMAILI](https://github.com/jdalfons)
+        - [Mariem Amirouch](https://www.linkedin.com/in/mariem-amirouch-b79a64256/)
+        - [Riyad ISMAILI](https://github.com/riyadismaili)
         """)
         
     # st.markdown("### Quick Links")
