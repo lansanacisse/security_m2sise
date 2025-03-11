@@ -15,8 +15,8 @@ def user_page():
 
     # Sidebar navigation with streamlit-option-menu
     with st.sidebar:
-        # st.image("img/logo.png", use_container_width=True)
-        # st.markdown("<h1 style='text-align: center;'>SecureIA Dashboard</h1>", unsafe_allow_html=True)
+        st.image("img/logo.png", use_container_width=True)
+        st.markdown("<h1 style='text-align: center;'>SecureIA Dashboard</h1>", unsafe_allow_html=True)
         # Navigation menu with icons
         selected_tab = option_menu(
             menu_title=None,  # Added menu_title parameter
@@ -31,7 +31,6 @@ def user_page():
             "nav-link-selected": {"background-color": "#4CAF50", "color": "white"},
             }
         )
-    
 
     # Content based on selection
     if selected_tab == "Home":
@@ -78,19 +77,3 @@ def user_page():
         - [Mariem Amirouch](https://www.linkedin.com/in/mariem-amirouch-b79a64256/)
         - [Riyad ISMAILI](https://github.com/riyadismaili)
         """)
-        
-    # st.markdown("### Quick Links")
-    # col1, col2, col3 = st.columns(3)
-    # with col1:
-    #     if st.button("📄 Documentation"):
-    #         st.write("Redirecting to documentation...")
-    #         # Redirection vers la page de documentation
-    #         st.session_state.current_page = "Documentation"
-    #         st.experimental_rerun()
-    # with col2:
-    #     if st.button("🛠️ Settings"):
-    #         st.write("Redirecting to settings...")
-    # with col3:
-    #     if st.button("📤 Logout"):
-    #         st.write("Logging out...")
-    #         # Add logout logic here
