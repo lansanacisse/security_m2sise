@@ -1,8 +1,9 @@
 import streamlit as st
 from db import LogDatabase
-import pandas as pd
+import polars as pl
 
 db = LogDatabase()
+
 def upload_page():
     
     st.header("Upload Logs Data")
@@ -14,36 +15,35 @@ def upload_page():
     if file_type == "csv":
         st.write("type file csv")
         separator = middle.selectbox("Separator", [";", ","], index=0)
-    # right.text_input("Write something")
-    
     
     uploaded_file = st.file_uploader(f"Choose a {file_type} file.", type=file_type)
     
     if uploaded_file is not None:
-        # Display first 10 rows of the file
         columns = [
             "Date", 
             "IP Source", 
             "IP Dest", 
-            "Protocole", 
+            "Protocol", 
             "Port Source",
             "Port Destination", 
-            "Id regles firewall", 
+            "Firewall Rule Id", 
             "Action", 
             "Interface d’entrée", 
             "Interface de sortie",
             "Firewall"]
         
-        df = pd.read_csv(uploaded_file, sep=separator, names=columns, header=None)
+        if file_type == "csv":
+            df = pl.read_csv(uploaded_file, separator=separator, has_header=False)
+            df.columns = columns
+        else:
+            df = pl.read_parquet(uploaded_file)
         st.subheader("Preview of uploaded file:")
-        st.dataframe(df.head(10))
+        st.dataframe(df.head(10).to_pandas())
         
-        # Show basic file stats
         st.subheader("File Statistics:")
-        st.write(f"Total rows: {len(df)}")
-        st.write(f"Columns: {', '.join(df.columns.tolist())}")
+        st.write(f"Total rows: {df.height}")
+        st.write(f"Columns: {', '.join(df.columns)}")
         
-        # Upload button
         if st.button("Replace Database with This File"):
             success, message = db.upload_csv_to_logs(df)
             if success:
